@@ -39,20 +39,52 @@ export const PasswordChangeForm = () => {
           throw new Error(userError?.message || "No authenticated user found");
         }
 
+        console.log("Found authenticated user:", user.email);
+
+        // First check if member exists
         const { data: memberData, error: memberError } = await supabase
           .from('members')
           .select('*')
           .eq('email', user.email)
-          .single();
+          .maybeSingle(); // This handles both cases - no results or single result
 
         if (memberError) {
           console.error("Member data fetch error:", memberError);
-          throw memberError;
+          // Only throw if it's not a "no rows returned" error
+          if (memberError.code !== 'PGRST116') {
+            throw memberError;
+          }
         }
-        
-        console.log("Fetched member data:", memberData);
-        setUserData(memberData);
-        setIsFirstTimeLogin(memberData.first_time_login || false);
+
+        if (!memberData) {
+          console.log("No member found for email:", user.email);
+          // Create a new member record
+          const { data: newMember, error: createError } = await supabase
+            .from('members')
+            .insert({
+              email: user.email,
+              member_number: user.user_metadata.member_number || 'PENDING',
+              full_name: 'New Member',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              first_time_login: true
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            console.error("Error creating new member:", createError);
+            throw createError;
+          }
+
+          console.log("Created new member record:", newMember);
+          setUserData(newMember);
+          setIsFirstTimeLogin(true);
+        } else {
+          console.log("Found existing member:", memberData);
+          setUserData(memberData);
+          setIsFirstTimeLogin(memberData.first_time_login || false);
+        }
       } catch (error) {
         console.error("Error fetching user data:", error);
         toast({
@@ -207,4 +239,5 @@ export const PasswordChangeForm = () => {
       </form>
     </Card>
   );
+
 };
