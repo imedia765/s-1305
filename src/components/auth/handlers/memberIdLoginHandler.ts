@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/config/supabase";
-import { type ToastProps } from "@/components/ui/toast";
+import { type ToastProps } from "@/components/ui/use-toast";
 
 export const handleMemberIdLogin = async (
   memberId: string,
@@ -116,8 +116,8 @@ export const handleMemberIdLogin = async (
     console.error("Member ID login error:", error);
     toast({
       title: "Login failed",
-      description: error instanceof Error ? error.message : "Invalid Member ID or password",
       variant: "destructive",
+      children: error instanceof Error ? error.message : "Invalid Member ID or password"
     });
     return false;
   }

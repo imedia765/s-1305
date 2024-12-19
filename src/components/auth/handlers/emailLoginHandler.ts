@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/config/supabase";
-import { type ToastProps } from "@/components/ui/toast";
+import { type ToastProps } from "@/components/ui/use-toast";
 
 export const handleEmailLogin = async (
   email: string,
@@ -71,8 +71,8 @@ export const handleEmailLogin = async (
     console.error("Email login error:", error);
     toast({
       title: "Login failed",
-      description: error instanceof Error ? error.message : "An error occurred during login",
       variant: "destructive",
+      children: error instanceof Error ? error.message : "An error occurred during login"
     });
     return false;
   }
