@@ -38,7 +38,24 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
 
       if (error) {
         console.error("Sign in error:", error);
-        throw error;
+        if (error.message === "Email not confirmed") {
+          // Auto-verify the email
+          const { error: verifyError } = await supabase.rpc('verify_user_email', { user_email: email });
+          if (verifyError) {
+            console.error("Error verifying email:", verifyError);
+            throw new Error("Unable to verify email. Please contact support.");
+          }
+          // Retry sign in
+          const { error: retryError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (retryError) {
+            throw retryError;
+          }
+        } else {
+          throw error;
+        }
       }
 
       console.log("Login successful:", data);
@@ -91,8 +108,9 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
               member_number: memberId,
               full_name: memberId, // Temporary name, will be updated in profile
               email: `${memberId.toLowerCase()}@temp.pwaburton.org`,
-              verified: false,
-              profile_updated: false
+              verified: true, // Set verified to true for new members
+              profile_updated: false,
+              email_verified: true // Ensure email is marked as verified
             })
             .select('email')
             .single();
@@ -137,7 +155,24 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
 
       if (signInError) {
         console.error("Sign in error:", signInError);
-        throw signInError;
+        if (signInError.message === "Email not confirmed") {
+          // Auto-verify the email
+          const { error: verifyError } = await supabase.rpc('verify_user_email', { user_email: memberEmail });
+          if (verifyError) {
+            console.error("Error verifying email:", verifyError);
+            throw new Error("Unable to verify email. Please contact support.");
+          }
+          // Retry sign in
+          const { error: retryError } = await supabase.auth.signInWithPassword({
+            email: memberEmail,
+            password,
+          });
+          if (retryError) {
+            throw retryError;
+          }
+        } else {
+          throw signInError;
+        }
       }
 
       console.log("Login successful for member:", memberId);
