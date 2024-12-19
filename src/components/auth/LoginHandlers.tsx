@@ -67,60 +67,71 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
     try {
       console.log("Attempting member ID login for:", memberId);
       
-      // First, get the member details
-      const { data: member, error: memberError } = await supabase
+      // First, check if member exists by member_number
+      const { data: existingMember, error: checkError } = await supabase
         .from('members')
-        .select('email, default_password_hash')
+        .select('email, member_number')
         .eq('member_number', memberId)
         .maybeSingle();
 
-      if (memberError && memberError.code !== 'PGRST116') {
-        console.error("Member lookup error:", memberError);
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error("Member lookup error:", checkError);
         throw new Error("Error looking up member details");
       }
 
-      // If member doesn't exist, create one
-      if (!member) {
-        console.log("Member not found, creating new member:", memberId);
-        const { data: newMember, error: createError } = await supabase
-          .from('members')
-          .insert([
-            {
+      let memberEmail;
+
+      if (!existingMember) {
+        console.log("Member not found, attempting to create:", memberId);
+        
+        try {
+          const { data: newMember, error: createError } = await supabase
+            .from('members')
+            .insert({
               member_number: memberId,
               full_name: memberId, // Temporary name, will be updated in profile
               email: `${memberId.toLowerCase()}@temp.pwaburton.org`,
               verified: false,
               profile_updated: false
+            })
+            .select('email')
+            .single();
+
+          if (createError) {
+            // If we get a duplicate key error, try to fetch the member again
+            if (createError.code === '23505') {
+              console.log("Member was created by another process, fetching details");
+              const { data: racedMember, error: raceFetchError } = await supabase
+                .from('members')
+                .select('email')
+                .eq('member_number', memberId)
+                .single();
+
+              if (raceFetchError) {
+                console.error("Error fetching member after race condition:", raceFetchError);
+                throw new Error("Error accessing member account");
+              }
+
+              memberEmail = racedMember.email;
+            } else {
+              console.error("Error creating member:", createError);
+              throw new Error("Error creating new member account");
             }
-          ])
-          .select()
-          .single();
-
-        if (createError) {
-          console.error("Error creating member:", createError);
-          throw new Error("Error creating new member account");
+          } else {
+            console.log("New member created successfully:", newMember);
+            memberEmail = newMember.email;
+          }
+        } catch (createError) {
+          console.error("Member creation failed:", createError);
+          throw new Error("Failed to create member account");
         }
-
-        console.log("New member created successfully:", newMember);
+      } else {
+        memberEmail = existingMember.email || `${memberId.toLowerCase()}@temp.pwaburton.org`;
       }
-
-      // Get the latest member data (whether new or existing)
-      const { data: updatedMember, error: fetchError } = await supabase
-        .from('members')
-        .select('email')
-        .eq('member_number', memberId)
-        .single();
-
-      if (fetchError) {
-        console.error("Error fetching member data:", fetchError);
-        throw new Error("Error accessing member account");
-      }
-
-      const email = updatedMember.email || `${memberId.toLowerCase()}@temp.pwaburton.org`;
 
       // Attempt to sign in
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
+        email: memberEmail,
         password,
       });
 
