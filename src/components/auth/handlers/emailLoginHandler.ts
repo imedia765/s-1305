@@ -1,11 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/config/supabase";
-import { type ToastProps } from "@/components/ui/use-toast";
+import { type Toast } from "@/components/ui/use-toast";
 
 export const handleEmailLogin = async (
   email: string,
   password: string,
-  toast: (props: ToastProps) => void
+  toast: (props: Toast) => void
 ) => {
   try {
     console.log("Attempting email login for:", email);
