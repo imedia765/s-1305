@@ -79,36 +79,49 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
         throw new Error("Error looking up member details");
       }
 
+      // If member doesn't exist, create one
       if (!member) {
-        console.error("No member found with ID:", memberId);
-        throw new Error("Invalid Member ID. Please check your credentials and try again.");
-      }
-
-      if (!member.email) {
-        // Create a temporary email for first-time login
-        const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
-        console.log("Creating temporary email:", tempEmail);
-        
-        // Update member with temporary email
-        const { error: updateError } = await supabase
+        console.log("Member not found, creating new member:", memberId);
+        const { data: newMember, error: createError } = await supabase
           .from('members')
-          .update({ email: tempEmail })
-          .eq('member_number', memberId)
+          .insert([
+            {
+              member_number: memberId,
+              full_name: memberId, // Temporary name, will be updated in profile
+              email: `${memberId.toLowerCase()}@temp.pwaburton.org`,
+              verified: false,
+              profile_updated: false
+            }
+          ])
           .select()
-          .maybeSingle();
+          .single();
 
-        if (updateError) {
-          console.error("Error updating member with temp email:", updateError);
-          throw new Error("Error setting up temporary email");
+        if (createError) {
+          console.error("Error creating member:", createError);
+          throw new Error("Error creating new member account");
         }
 
-        member.email = tempEmail;
+        console.log("New member created successfully:", newMember);
       }
+
+      // Get the latest member data (whether new or existing)
+      const { data: updatedMember, error: fetchError } = await supabase
+        .from('members')
+        .select('email')
+        .eq('member_number', memberId)
+        .single();
+
+      if (fetchError) {
+        console.error("Error fetching member data:", fetchError);
+        throw new Error("Error accessing member account");
+      }
+
+      const email = updatedMember.email || `${memberId.toLowerCase()}@temp.pwaburton.org`;
 
       // Attempt to sign in
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: member.email,
-        password: password,
+        email,
+        password,
       });
 
       if (signInError) {
