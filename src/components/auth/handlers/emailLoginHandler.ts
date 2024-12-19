@@ -1,11 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/config/supabase";
-import { Toast } from "@/components/ui/use-toast";
+import { type ToastProps } from "@/components/ui/toast";
 
 export const handleEmailLogin = async (
   email: string,
   password: string,
-  toast: (props: Toast) => void
+  toast: (props: ToastProps) => void
 ) => {
   try {
     console.log("Attempting email login for:", email);
@@ -53,8 +53,13 @@ export const handleEmailLogin = async (
           password,
         });
         if (retryError) {
+          if (retryError.message.includes("Invalid login credentials")) {
+            throw new Error("Invalid email or password. Please try again.");
+          }
           throw retryError;
         }
+      } else if (error.message.includes("Invalid login credentials")) {
+        throw new Error("Invalid email or password. Please try again.");
       } else {
         throw error;
       }
