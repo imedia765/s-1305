@@ -20,7 +20,7 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
         .eq('email', email)
         .maybeSingle();
 
-      if (memberError) {
+      if (memberError && memberError.code !== 'PGRST116') {
         console.error("Member lookup error:", memberError);
         throw new Error("Error looking up member details");
       }
@@ -74,7 +74,7 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
         .eq('member_number', memberId)
         .maybeSingle();
 
-      if (memberError) {
+      if (memberError && memberError.code !== 'PGRST116') {
         console.error("Member lookup error:", memberError);
         throw new Error("Error looking up member details");
       }
@@ -85,8 +85,24 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
       }
 
       if (!member.email) {
-        console.error("No email found for member:", memberId);
-        throw new Error("No email associated with this Member ID. Please contact support.");
+        // Create a temporary email for first-time login
+        const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
+        console.log("Creating temporary email:", tempEmail);
+        
+        // Update member with temporary email
+        const { error: updateError } = await supabase
+          .from('members')
+          .update({ email: tempEmail })
+          .eq('member_number', memberId)
+          .select()
+          .maybeSingle();
+
+        if (updateError) {
+          console.error("Error updating member with temp email:", updateError);
+          throw new Error("Error setting up temporary email");
+        }
+
+        member.email = tempEmail;
       }
 
       // Attempt to sign in
