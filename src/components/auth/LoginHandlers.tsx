@@ -39,12 +39,21 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
       if (error) {
         console.error("Sign in error:", error);
         if (error.message === "Email not confirmed") {
-          // Auto-verify the email
-          const { error: verifyError } = await supabase.rpc('verify_user_email', { user_email: email });
-          if (verifyError) {
-            console.error("Error verifying email:", verifyError);
+          // Call our Edge Function to verify the email
+          const response = await fetch(`${supabase.supabaseUrl}/functions/v1/confirm-user-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabase.supabaseKey}`
+            },
+            body: JSON.stringify({ email })
+          });
+
+          if (!response.ok) {
+            console.error("Error verifying email:", await response.text());
             throw new Error("Unable to verify email. Please contact support.");
           }
+
           // Retry sign in
           const { error: retryError } = await supabase.auth.signInWithPassword({
             email,
@@ -156,12 +165,21 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
       if (signInError) {
         console.error("Sign in error:", signInError);
         if (signInError.message === "Email not confirmed") {
-          // Auto-verify the email
-          const { error: verifyError } = await supabase.rpc('verify_user_email', { user_email: memberEmail });
-          if (verifyError) {
-            console.error("Error verifying email:", verifyError);
+          // Call our Edge Function to verify the email
+          const response = await fetch(`${supabase.supabaseUrl}/functions/v1/confirm-user-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabase.supabaseKey}`
+            },
+            body: JSON.stringify({ email: memberEmail })
+          });
+
+          if (!response.ok) {
+            console.error("Error verifying email:", await response.text());
             throw new Error("Unable to verify email. Please contact support.");
           }
+
           // Retry sign in
           const { error: retryError } = await supabase.auth.signInWithPassword({
             email: memberEmail,
