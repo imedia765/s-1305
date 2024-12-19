@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/config/supabase";
-import { type Toast } from "@/components/ui/use-toast";
+import { type Toast } from "@/hooks/use-toast";
 
 export const handleMemberIdLogin = async (
   memberId: string,
