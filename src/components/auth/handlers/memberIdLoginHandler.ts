@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { ToastActionElement } from "@/components/ui/toast";
+import { User } from "@supabase/supabase-js";
 
 type Toast = {
   title?: string;
@@ -62,7 +63,11 @@ export const handleMemberIdLogin = async (
     }
 
     // Step 2: Check if user exists in auth, if not create them
-    const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers();
+    const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers() as { 
+      data: { users: User[] }, 
+      error: Error | null 
+    };
+    
     const existingUser = users?.find(u => u.email === existingMember.email);
 
     if (!existingUser) {
