@@ -18,6 +18,7 @@ export const handleMemberIdLogin = async (
   try {
     console.log("Attempting member ID login for:", memberId);
     
+    // Step 1: Check if member exists in the members table
     const { data: existingMember, error: checkError } = await supabase
       .from('members')
       .select('email, member_number')
@@ -31,95 +32,80 @@ export const handleMemberIdLogin = async (
 
     let memberEmail;
 
+    // Step 2: Create member record if it doesn't exist
     if (!existingMember) {
       console.log("Member not found, attempting to create:", memberId);
       
-      // Try to create the member, but handle potential race conditions
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const { data: newMember, error: createError } = await supabase
+      const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
+      
+      const { data: newMember, error: createError } = await supabase
+        .from('members')
+        .insert({
+          member_number: memberId,
+          full_name: memberId,
+          email: tempEmail,
+          verified: true,
+          profile_updated: false,
+          email_verified: true
+        })
+        .select('email')
+        .single();
+
+      if (createError) {
+        if (createError.code === '23505') {
+          // Handle race condition - fetch the member that was just created
+          const { data: racedMember, error: raceFetchError } = await supabase
             .from('members')
-            .insert({
-              member_number: memberId,
-              full_name: memberId,
-              email: `${memberId.toLowerCase()}@temp.pwaburton.org`,
-              verified: true,
-              profile_updated: false,
-              email_verified: true
-            })
             .select('email')
+            .eq('member_number', memberId)
             .single();
 
-          if (createError) {
-            if (createError.code === '23505') {
-              // If we get a duplicate key error, try to fetch the member that was just created
-              console.log("Member was created by another process, fetching details");
-              const { data: racedMember, error: raceFetchError } = await supabase
-                .from('members')
-                .select('email')
-                .eq('member_number', memberId)
-                .single();
-
-              if (raceFetchError) {
-                console.error("Error fetching member after race condition:", raceFetchError);
-                continue; // Try again if we couldn't fetch the member
-              }
-
-              memberEmail = racedMember.email;
-              break; // Successfully got the member email, exit the loop
-            } else {
-              throw createError; // For any other error, throw it
-            }
-          } else {
-            console.log("New member created successfully:", newMember);
-            memberEmail = newMember.email;
-            break; // Successfully created member, exit the loop
+          if (raceFetchError) {
+            console.error("Error fetching member after race condition:", raceFetchError);
+            throw new Error("Failed to retrieve member details");
           }
-        } catch (error) {
-          if (attempt === 2) { // Last attempt
-            console.error("All attempts to create/fetch member failed:", error);
-            throw new Error("Failed to create member account");
-          }
-          // Wait a bit before retrying
-          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt)));
+
+          memberEmail = racedMember.email;
+        } else {
+          console.error("Error creating member:", createError);
+          throw new Error("Failed to create member account");
         }
+      } else {
+        memberEmail = newMember.email;
       }
     } else {
-      memberEmail = existingMember.email || `${memberId.toLowerCase()}@temp.pwaburton.org`;
+      memberEmail = existingMember.email;
     }
 
     if (!memberEmail) {
       throw new Error("Could not determine member email");
     }
 
-    // Try to sign up first (this will fail if user exists, which is fine)
-    try {
-      console.log("Attempting to sign up user:", memberEmail);
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: memberEmail,
-        password: password,
-        options: {
-          data: {
-            member_id: memberId,
-            member_number: memberId.toUpperCase(),
-          }
-        }
-      });
+    // Step 3: Handle auth signup/signin
+    console.log("Attempting auth flow for:", memberEmail);
 
-      if (signUpError && !signUpError.message.includes("User already registered")) {
-        console.error("Sign up error:", signUpError);
-        throw signUpError;
+    // Try signup first (will fail if user exists, which is fine)
+    const { error: signUpError } = await supabase.auth.signUp({
+      email: memberEmail,
+      password: password,
+      options: {
+        data: {
+          member_id: memberId,
+          member_number: memberId.toUpperCase(),
+        }
       }
-      console.log("Sign up successful or user already exists");
-      
-      // Wait a moment for the signup to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    } catch (error) {
-      console.log("Sign up attempt failed, proceeding to sign in:", error);
+    });
+
+    if (signUpError && !signUpError.message.includes("User already registered")) {
+      console.error("Signup error:", signUpError);
+      throw signUpError;
     }
 
-    // Now attempt to sign in
-    console.log("Attempting to sign in with:", { email: memberEmail });
+    // Wait briefly for signup to process
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Step 4: Attempt sign in
+    console.log("Attempting sign in for:", memberEmail);
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: memberEmail,
       password,
@@ -127,7 +113,9 @@ export const handleMemberIdLogin = async (
 
     if (signInError) {
       console.error("Sign in error:", signInError);
+      
       if (signInError.message === "Email not confirmed") {
+        // Handle unconfirmed email case
         const response = await fetch(`${SUPABASE_URL}/functions/v1/confirm-user-email`, {
           method: 'POST',
           headers: {
@@ -138,17 +126,18 @@ export const handleMemberIdLogin = async (
         });
 
         if (!response.ok) {
-          console.error("Error verifying email:", await response.text());
+          console.error("Email verification failed:", await response.text());
           throw new Error("Unable to verify email. Please contact support.");
         }
 
-        // Try signing in again after email confirmation
+        // Retry sign in after email confirmation
         const { error: retryError } = await supabase.auth.signInWithPassword({
           email: memberEmail,
           password,
         });
-        
+
         if (retryError) {
+          console.error("Retry sign in error:", retryError);
           if (retryError.message.includes("Invalid login credentials")) {
             throw new Error("Invalid Member ID or password. Please try again.");
           }
