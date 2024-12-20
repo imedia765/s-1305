@@ -92,25 +92,34 @@ export const handleMemberIdLogin = async (
       throw new Error("Could not determine member email");
     }
 
-    // Try to create the auth user first
+    // Try to sign up first (this will fail if user exists, which is fine)
     try {
-      console.log("Attempting to create auth user for:", memberEmail);
-      const { data: authUser, error: createUserError } = await supabase.auth.admin.createUser({
+      console.log("Attempting to sign up user:", memberEmail);
+      const { error: signUpError } = await supabase.auth.signUp({
         email: memberEmail,
         password: password,
-        email_confirm: true
+        options: {
+          data: {
+            member_id: memberId,
+            member_number: memberId.toUpperCase(),
+          }
+        }
       });
 
-      if (createUserError && createUserError.message !== "User already registered") {
-        console.error("Error creating auth user:", createUserError);
-        throw createUserError;
+      if (signUpError && !signUpError.message.includes("User already registered")) {
+        console.error("Sign up error:", signUpError);
+        throw signUpError;
       }
-      console.log("Auth user created or already exists");
+      console.log("Sign up successful or user already exists");
+      
+      // Wait a moment for the signup to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {
-      console.log("Error in auth user creation, attempting sign in anyway:", error);
+      console.log("Sign up attempt failed, proceeding to sign in:", error);
     }
 
     // Now attempt to sign in
+    console.log("Attempting to sign in with:", { email: memberEmail });
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: memberEmail,
       password,
@@ -133,10 +142,12 @@ export const handleMemberIdLogin = async (
           throw new Error("Unable to verify email. Please contact support.");
         }
 
+        // Try signing in again after email confirmation
         const { error: retryError } = await supabase.auth.signInWithPassword({
           email: memberEmail,
           password,
         });
+        
         if (retryError) {
           if (retryError.message.includes("Invalid login credentials")) {
             throw new Error("Invalid Member ID or password. Please try again.");
@@ -156,8 +167,8 @@ export const handleMemberIdLogin = async (
     console.error("Member ID login error:", error);
     toast({
       title: "Login failed",
+      description: error instanceof Error ? error.message : "Invalid Member ID or password",
       variant: "destructive",
-      children: error instanceof Error ? error.message : "Invalid Member ID or password"
     });
     return false;
   }
