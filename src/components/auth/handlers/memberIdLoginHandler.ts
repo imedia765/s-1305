@@ -24,50 +24,66 @@ export const handleMemberIdLogin = async (
       .eq('member_number', memberId)
       .maybeSingle();
 
-    if (checkError && checkError.code !== 'PGRST116') {
+    if (checkError) {
       console.error("Member lookup error:", checkError);
       throw new Error("Error looking up member details");
     }
 
     let memberEmail;
 
-    // Step 2: Create member record if it doesn't exist
+    // Step 2: Handle member creation or retrieval
     if (!existingMember) {
-      console.log("Member not found, creating new member:", memberId);
+      console.log("Member not found, attempting to create:", memberId);
       
       const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
       
-      // Insert member directly without using RPC
-      const { data: newMember, error: createError } = await supabase
+      // First try to get the member again to handle race conditions
+      const { data: doubleCheck } = await supabase
         .from('members')
-        .insert([{
-          member_number: memberId,
-          full_name: memberId,
-          email: tempEmail,
-          verified: true,
-          profile_updated: false,
-          email_verified: true,
-          status: 'active'
-        }])
-        .select()
-        .single();
+        .select('email')
+        .eq('member_number', memberId)
+        .maybeSingle();
 
-      if (createError) {
-        if (createError.code === '23505') { // Unique violation
-          console.log("Member already exists, proceeding with login");
-          const { data: existingMem } = await supabase
-            .from('members')
-            .select('email')
-            .eq('member_number', memberId)
-            .single();
-          memberEmail = existingMem?.email;
-        } else {
-          console.error("Error creating member:", createError);
-          throw new Error("Failed to create member account");
-        }
+      if (doubleCheck?.email) {
+        console.log("Member was created in parallel, using existing record");
+        memberEmail = doubleCheck.email;
       } else {
-        memberEmail = tempEmail;
-        console.log("New member created with email:", memberEmail);
+        // Try to insert the new member
+        const { data: newMember, error: createError } = await supabase
+          .from('members')
+          .insert({
+            member_number: memberId,
+            full_name: memberId,
+            email: tempEmail,
+            verified: true,
+            profile_updated: false,
+            email_verified: true,
+            status: 'active'
+          })
+          .select('email')
+          .single();
+
+        if (createError) {
+          if (createError.code === '23505') { // Unique constraint violation
+            console.log("Member was created in parallel, fetching existing record");
+            const { data: existingMem, error: fetchError } = await supabase
+              .from('members')
+              .select('email')
+              .eq('member_number', memberId)
+              .single();
+
+            if (fetchError) {
+              throw new Error("Failed to fetch member details");
+            }
+            memberEmail = existingMem.email;
+          } else {
+            console.error("Error creating member:", createError);
+            throw new Error("Failed to create member account");
+          }
+        } else {
+          memberEmail = newMember.email;
+          console.log("New member created with email:", memberEmail);
+        }
       }
     } else {
       memberEmail = existingMember.email;
