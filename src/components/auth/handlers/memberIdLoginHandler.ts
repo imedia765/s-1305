@@ -16,7 +16,7 @@ export const handleMemberIdLogin = async (
   toast: (props: Toast) => void
 ) => {
   try {
-    console.log("Attempting member ID login for:", memberId);
+    console.log("Starting member ID login process for:", memberId);
     
     // Step 1: Check if member exists in the members table
     const { data: existingMember, error: checkError } = await supabase
@@ -34,67 +34,60 @@ export const handleMemberIdLogin = async (
 
     // Step 2: Create member record if it doesn't exist
     if (!existingMember) {
-      console.log("Member not found, attempting to create:", memberId);
+      console.log("Member not found, creating new member:", memberId);
       
       const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
       
+      // Use a transaction to ensure atomicity
       const { data: newMember, error: createError } = await supabase
-        .from('members')
-        .insert({
-          member_number: memberId,
-          full_name: memberId,
-          email: tempEmail,
-          verified: true,
-          profile_updated: false,
-          email_verified: true
-        })
-        .select('email')
-        .single();
+        .rpc('create_member_with_retry', {
+          p_member_number: memberId,
+          p_full_name: memberId,
+          p_email: tempEmail,
+          max_retries: 3
+        });
 
       if (createError) {
-        if (createError.code === '23505') {
-          // Handle race condition - fetch the member that was just created
-          const { data: racedMember, error: raceFetchError } = await supabase
-            .from('members')
-            .select('email')
-            .eq('member_number', memberId)
-            .single();
-
-          if (raceFetchError) {
-            console.error("Error fetching member after race condition:", raceFetchError);
-            throw new Error("Failed to retrieve member details");
-          }
-
-          memberEmail = racedMember.email;
-        } else {
-          console.error("Error creating member:", createError);
-          throw new Error("Failed to create member account");
-        }
-      } else {
-        memberEmail = newMember.email;
+        console.error("Error creating member:", createError);
+        throw new Error("Failed to create member account");
       }
+
+      memberEmail = tempEmail;
+      console.log("New member created with email:", memberEmail);
     } else {
       memberEmail = existingMember.email;
+      console.log("Existing member found with email:", memberEmail);
     }
 
     if (!memberEmail) {
       throw new Error("Could not determine member email");
     }
 
-    // Step 3: Try to sign in first
-    console.log("Attempting sign in for:", memberEmail);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: memberEmail,
-      password,
-    });
+    // Step 3: Check if auth user exists
+    const { data: { user: existingUser }, error: userCheckError } = await supabase.auth.admin.getUserByEmail(memberEmail);
+    
+    if (userCheckError) {
+      console.error("Error checking auth user:", userCheckError);
+    }
 
-    // If sign in fails, try to sign up
-    if (signInError) {
-      console.log("Sign in failed, attempting signup:", signInError.message);
-      
+    if (existingUser) {
+      console.log("Auth user exists, attempting sign in");
+      // Try to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: memberEmail,
+        password,
+      });
+
+      if (signInError) {
+        console.error("Sign in error:", signInError);
+        throw new Error("Invalid Member ID or password");
+      }
+    } else {
+      console.log("Auth user does not exist, creating new user");
+      // Create new auth user
       const { error: signUpError } = await supabase.auth.signUp({
         email: memberEmail,
-        password: password,
+        password,
         options: {
           data: {
             member_id: memberId,
@@ -104,9 +97,9 @@ export const handleMemberIdLogin = async (
       });
 
       if (signUpError) {
-        // If user already exists, try signing in again
+        // If user was created in a race condition, try signing in
         if (signUpError.message.includes("User already registered")) {
-          console.log("User exists, retrying sign in");
+          console.log("User was created in parallel, attempting sign in");
           const { error: retryError } = await supabase.auth.signInWithPassword({
             email: memberEmail,
             password,
@@ -114,16 +107,16 @@ export const handleMemberIdLogin = async (
 
           if (retryError) {
             console.error("Retry sign in error:", retryError);
-            throw new Error("Invalid Member ID or password. Please try again.");
+            throw new Error("Invalid Member ID or password");
           }
         } else {
-          console.error("Signup error:", signUpError);
+          console.error("Sign up error:", signUpError);
           throw signUpError;
         }
       }
 
-      // Wait briefly for signup to process
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for auth to process
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     console.log("Login successful for member:", memberId);
