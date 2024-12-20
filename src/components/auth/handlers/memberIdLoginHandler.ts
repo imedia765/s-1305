@@ -63,16 +63,16 @@ export const handleMemberIdLogin = async (
 
     // Step 2: Try to sign in with the provided credentials
     console.log("Attempting to sign in with email:", existingMember.email);
-    const { error: signInError, data: signInData } = await supabase.auth.signInWithPassword({
+    let signInResult = await supabase.auth.signInWithPassword({
       email: existingMember.email,
       password: existingMember.profile_updated ? password : memberId.toUpperCase(),
     });
 
     // If sign in fails and user hasn't updated their profile, try to create the account
-    if (signInError && !existingMember.profile_updated) {
+    if (signInResult.error && !existingMember.profile_updated) {
       console.log("Sign in failed, attempting to create new user account");
       
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError, data: signUpData } = await supabase.auth.signUp({
         email: existingMember.email,
         password: memberId.toUpperCase(),
         options: {
@@ -89,21 +89,25 @@ export const handleMemberIdLogin = async (
       }
 
       // Try signing in again after creating the account
-      const { error: retryError } = await supabase.auth.signInWithPassword({
+      signInResult = await supabase.auth.signInWithPassword({
         email: existingMember.email,
         password: memberId.toUpperCase(),
       });
 
-      if (retryError) {
-        console.error("Error signing in after account creation:", retryError);
+      if (signInResult.error) {
+        console.error("Error signing in after account creation:", signInResult.error);
         throw new Error("Failed to sign in");
       }
-    } else if (signInError) {
-      console.error("Sign in error:", signInError);
+    } else if (signInResult.error) {
+      console.error("Sign in error:", signInResult.error);
       throw new Error("Invalid Member ID or password");
     }
 
     // Step 3: After successful sign in, check and create profile if needed
+    if (!signInResult.data.session) {
+      throw new Error("No session after sign in");
+    }
+
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('email')
@@ -117,6 +121,7 @@ export const handleMemberIdLogin = async (
         .insert({
           id: existingMember.id,
           email: existingMember.email,
+          user_id: signInResult.data.session.user.id,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
