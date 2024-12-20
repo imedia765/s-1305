@@ -81,73 +81,49 @@ export const handleMemberIdLogin = async (
       throw new Error("Could not determine member email");
     }
 
-    // Step 3: Handle auth signup/signin
-    console.log("Attempting auth flow for:", memberEmail);
-
-    // Try signup first (will fail if user exists, which is fine)
-    const { error: signUpError } = await supabase.auth.signUp({
-      email: memberEmail,
-      password: password,
-      options: {
-        data: {
-          member_id: memberId,
-          member_number: memberId.toUpperCase(),
-        }
-      }
-    });
-
-    if (signUpError && !signUpError.message.includes("User already registered")) {
-      console.error("Signup error:", signUpError);
-      throw signUpError;
-    }
-
-    // Wait briefly for signup to process
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Step 4: Attempt sign in
+    // Step 3: Try to sign in first
     console.log("Attempting sign in for:", memberEmail);
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: memberEmail,
       password,
     });
 
+    // If sign in fails, try to sign up
     if (signInError) {
-      console.error("Sign in error:", signInError);
+      console.log("Sign in failed, attempting signup:", signInError.message);
       
-      if (signInError.message === "Email not confirmed") {
-        // Handle unconfirmed email case
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/confirm-user-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_KEY}`
-          },
-          body: JSON.stringify({ email: memberEmail })
-        });
-
-        if (!response.ok) {
-          console.error("Email verification failed:", await response.text());
-          throw new Error("Unable to verify email. Please contact support.");
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: memberEmail,
+        password: password,
+        options: {
+          data: {
+            member_id: memberId,
+            member_number: memberId.toUpperCase(),
+          }
         }
+      });
 
-        // Retry sign in after email confirmation
-        const { error: retryError } = await supabase.auth.signInWithPassword({
-          email: memberEmail,
-          password,
-        });
+      if (signUpError) {
+        // If user already exists, try signing in again
+        if (signUpError.message.includes("User already registered")) {
+          console.log("User exists, retrying sign in");
+          const { error: retryError } = await supabase.auth.signInWithPassword({
+            email: memberEmail,
+            password,
+          });
 
-        if (retryError) {
-          console.error("Retry sign in error:", retryError);
-          if (retryError.message.includes("Invalid login credentials")) {
+          if (retryError) {
+            console.error("Retry sign in error:", retryError);
             throw new Error("Invalid Member ID or password. Please try again.");
           }
-          throw retryError;
+        } else {
+          console.error("Signup error:", signUpError);
+          throw signUpError;
         }
-      } else if (signInError.message.includes("Invalid login credentials")) {
-        throw new Error("Invalid Member ID or password. Please try again.");
-      } else {
-        throw signInError;
       }
+
+      // Wait briefly for signup to process
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     console.log("Login successful for member:", memberId);
