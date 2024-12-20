@@ -7,6 +7,7 @@ type Toast = {
   description?: React.ReactNode;
   variant?: "default" | "destructive";
   action?: ToastActionElement;
+  children?: React.ReactNode;
 };
 
 export const handleEmailLogin = async (
