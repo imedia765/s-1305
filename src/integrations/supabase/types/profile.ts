@@ -5,6 +5,7 @@ export type Profile = {
     id: string
     updated_at: string
     user_id: string | null
+    member_id: string | null  // Reference to members table
   }
   Insert: {
     created_at?: string
@@ -12,6 +13,7 @@ export type Profile = {
     id?: string
     updated_at?: string
     user_id?: string | null
+    member_id?: string | null
   }
   Update: {
     created_at?: string
@@ -19,6 +21,7 @@ export type Profile = {
     id?: string
     updated_at?: string
     user_id?: string | null
+    member_id?: string | null
   }
   Relationships: []
 }

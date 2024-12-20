@@ -9,11 +9,12 @@ type Toast = {
 };
 
 interface MemberResponse {
+  id: string;
   email: string;
   member_number: string;
   profile_updated: boolean;
   password_changed: boolean;
-  full_name: string;  // Added this field to fix the type error
+  full_name: string;
 }
 
 export const handleMemberIdLogin = async (
@@ -33,7 +34,7 @@ export const handleMemberIdLogin = async (
           // First try to get existing member
           const { data, error } = await supabase
             .from('members')
-            .select('email, member_number, profile_updated, password_changed, full_name')
+            .select('id, email, member_number, profile_updated, password_changed, full_name')
             .eq('member_number', memberId)
             .maybeSingle();
           
@@ -62,11 +63,11 @@ export const handleMemberIdLogin = async (
       throw new Error("Invalid Member ID");
     }
 
-    // Step 2: Check if profile exists, if not create it from member data
+    // Step 2: Check if profile exists by member_id
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('email')
-      .eq('member_number', memberId)
+      .eq('member_id', existingMember.id)
       .maybeSingle();
 
     if (!existingProfile) {
@@ -74,13 +75,11 @@ export const handleMemberIdLogin = async (
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
-          member_number: memberId,
+          member_id: existingMember.id,
           email: existingMember.email,
-          full_name: existingMember.full_name,
-          password: password,
+          user_id: null,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          status: 'active'
+          updated_at: new Date().toISOString()
         });
 
       if (profileError) {
