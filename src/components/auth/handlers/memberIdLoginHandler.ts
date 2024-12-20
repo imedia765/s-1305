@@ -132,7 +132,6 @@ export const handleMemberIdLogin = async (
           id: existingMember.id,
           email: existingMember.email,
           user_id: signInResult.data.session.user.id,
-          member_id: existingMember.id,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
