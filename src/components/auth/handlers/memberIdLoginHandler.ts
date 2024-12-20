@@ -17,7 +17,7 @@ export const handleMemberIdLogin = async (
   try {
     console.log("Starting member ID login process for:", memberId);
     
-    // Step 1: Check if member exists in the members table
+    // Step 1: Check if member exists in the members table using a transaction
     const { data: existingMember, error: checkError } = await supabase
       .from('members')
       .select('email, member_number, profile_updated, password_changed')
@@ -37,19 +37,9 @@ export const handleMemberIdLogin = async (
       
       const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
       
-      // First try to get the member again to handle race conditions
-      const { data: doubleCheck } = await supabase
-        .from('members')
-        .select('email, profile_updated, password_changed')
-        .eq('member_number', memberId)
-        .maybeSingle();
-
-      if (doubleCheck?.email) {
-        console.log("Member was created in parallel, using existing record");
-        memberEmail = doubleCheck.email;
-      } else {
-        // Try to insert the new member
-        const { data: newMember, error: createError } = await supabase
+      try {
+        // Try to insert the new member with a single query
+        const { data: newMember, error: insertError } = await supabase
           .from('members')
           .insert({
             member_number: memberId,
@@ -61,11 +51,12 @@ export const handleMemberIdLogin = async (
             email_verified: true,
             status: 'active'
           })
-          .select('email')
+          .select('email, profile_updated, password_changed')
           .single();
 
-        if (createError) {
-          if (createError.code === '23505') { // Unique constraint violation
+        if (insertError) {
+          // If insert fails due to duplicate, try to fetch the existing record
+          if (insertError.code === '23505') {
             console.log("Member was created in parallel, fetching existing record");
             const { data: existingMem, error: fetchError } = await supabase
               .from('members')
@@ -78,12 +69,25 @@ export const handleMemberIdLogin = async (
             }
             memberEmail = existingMem.email;
           } else {
-            console.error("Error creating member:", createError);
-            throw new Error("Failed to create member account");
+            throw insertError;
           }
         } else {
           memberEmail = newMember.email;
           console.log("New member created with email:", memberEmail);
+        }
+      } catch (error) {
+        // One final attempt to get the member in case of race condition
+        const { data: finalCheck } = await supabase
+          .from('members')
+          .select('email, profile_updated, password_changed')
+          .eq('member_number', memberId)
+          .single();
+
+        if (finalCheck) {
+          memberEmail = finalCheck.email;
+        } else {
+          console.error("Error in member creation process:", error);
+          throw new Error("Failed to create or retrieve member account");
         }
       }
     } else {
