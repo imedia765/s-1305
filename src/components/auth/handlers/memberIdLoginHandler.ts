@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/config/supabase";
-import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
+import type { ToastActionElement } from "@/components/ui/toast";
 
 type Toast = {
   title?: string;
@@ -34,49 +34,62 @@ export const handleMemberIdLogin = async (
     if (!existingMember) {
       console.log("Member not found, attempting to create:", memberId);
       
-      try {
-        const { data: newMember, error: createError } = await supabase
-          .from('members')
-          .insert({
-            member_number: memberId,
-            full_name: memberId,
-            email: `${memberId.toLowerCase()}@temp.pwaburton.org`,
-            verified: true,
-            profile_updated: false,
-            email_verified: true
-          })
-          .select('email')
-          .single();
+      // Try to create the member, but handle potential race conditions
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const { data: newMember, error: createError } = await supabase
+            .from('members')
+            .insert({
+              member_number: memberId,
+              full_name: memberId,
+              email: `${memberId.toLowerCase()}@temp.pwaburton.org`,
+              verified: true,
+              profile_updated: false,
+              email_verified: true
+            })
+            .select('email')
+            .single();
 
-        if (createError) {
-          if (createError.code === '23505') {
-            console.log("Member was created by another process, fetching details");
-            const { data: racedMember, error: raceFetchError } = await supabase
-              .from('members')
-              .select('email')
-              .eq('member_number', memberId)
-              .single();
+          if (createError) {
+            if (createError.code === '23505') {
+              // If we get a duplicate key error, try to fetch the member that was just created
+              console.log("Member was created by another process, fetching details");
+              const { data: racedMember, error: raceFetchError } = await supabase
+                .from('members')
+                .select('email')
+                .eq('member_number', memberId)
+                .single();
 
-            if (raceFetchError) {
-              console.error("Error fetching member after race condition:", raceFetchError);
-              throw new Error("Error accessing member account");
+              if (raceFetchError) {
+                console.error("Error fetching member after race condition:", raceFetchError);
+                continue; // Try again if we couldn't fetch the member
+              }
+
+              memberEmail = racedMember.email;
+              break; // Successfully got the member email, exit the loop
+            } else {
+              throw createError; // For any other error, throw it
             }
-
-            memberEmail = racedMember.email;
           } else {
-            console.error("Error creating member:", createError);
-            throw new Error("Error creating new member account");
+            console.log("New member created successfully:", newMember);
+            memberEmail = newMember.email;
+            break; // Successfully created member, exit the loop
           }
-        } else {
-          console.log("New member created successfully:", newMember);
-          memberEmail = newMember.email;
+        } catch (error) {
+          if (attempt === 2) { // Last attempt
+            console.error("All attempts to create/fetch member failed:", error);
+            throw new Error("Failed to create member account");
+          }
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt)));
         }
-      } catch (createError) {
-        console.error("Member creation failed:", createError);
-        throw new Error("Failed to create member account");
       }
     } else {
       memberEmail = existingMember.email || `${memberId.toLowerCase()}@temp.pwaburton.org`;
+    }
+
+    if (!memberEmail) {
+      throw new Error("Could not determine member email");
     }
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
