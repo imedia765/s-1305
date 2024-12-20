@@ -126,7 +126,7 @@ export const handleMemberIdLogin = async (
     if (!existingProfile) {
       console.log("Profile not found, creating from member data");
       
-      // Insert directly into profiles table with RLS bypassed
+      // Insert directly into profiles table
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
