@@ -31,7 +31,6 @@ export const handleMemberIdLogin = async (
         try {
           console.log(`Attempt ${i + 1} to fetch member ${memberId}`);
           
-          // First try to get existing member
           const { data, error } = await supabase
             .from('members')
             .select('id, email, member_number, profile_updated, password_changed, full_name')
@@ -56,58 +55,50 @@ export const handleMemberIdLogin = async (
     };
 
     const existingMember = await getMemberWithRetry();
-    let memberEmail;
 
     if (!existingMember) {
       console.error("No member found with ID:", memberId);
       throw new Error("Invalid Member ID");
     }
 
-    // Step 2: Check if profile exists
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('email')
-      .eq('id', existingMember.id)  // Using id instead of member_id
-      .maybeSingle();
-
-    if (!existingProfile) {
-      console.log("Profile not found, creating from member data");
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: existingMember.id,  // Using member's id as profile id
-          email: existingMember.email,
-          user_id: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-
-      if (profileError) {
-        console.error("Profile creation error:", profileError);
-        throw new Error("Could not create profile");
-      }
-      
-      memberEmail = existingMember.email;
-      console.log("Profile created with email:", memberEmail);
-    } else {
-      memberEmail = existingProfile.email;
-      console.log("Existing profile found:", memberEmail);
-    }
-
-    if (!memberEmail) {
-      throw new Error("Could not determine member email");
-    }
-
-    // Step 3: Try to sign in with profile credentials
-    console.log("Attempting to sign in with email:", memberEmail);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: memberEmail,
+    // Step 2: Try to sign in first
+    console.log("Attempting to sign in with email:", existingMember.email);
+    const { error: signInError, data: signInData } = await supabase.auth.signInWithPassword({
+      email: existingMember.email,
       password: existingMember.profile_updated ? password : memberId.toUpperCase(),
     });
 
     if (signInError) {
       console.log("Sign in failed:", signInError);
       throw new Error("Invalid Member ID or password");
+    }
+
+    // Step 3: After successful sign in, check and create profile if needed
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', existingMember.id)
+      .maybeSingle();
+
+    if (!existingProfile && signInData.session) {
+      console.log("Profile not found, creating from member data");
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: existingMember.id,
+          email: existingMember.email,
+          user_id: signInData.session.user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (profileError) {
+        console.error("Profile creation error:", profileError);
+        // Continue even if profile creation fails - we can try again later
+        console.log("Continuing despite profile creation error");
+      } else {
+        console.log("Profile created successfully");
+      }
     }
 
     console.log("Login successful for member:", memberId);
