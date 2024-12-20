@@ -1,11 +1,17 @@
+-- Function to create a profile with elevated permissions
 create or replace function create_profile(
   p_id uuid,
   p_email text,
   p_user_id uuid
 ) returns void as $$
 begin
-  insert into profiles (id, email, user_id, created_at, updated_at)
-  values (
+  insert into profiles (
+    id,
+    email,
+    user_id,
+    created_at,
+    updated_at
+  ) values (
     p_id,
     p_email,
     p_user_id,

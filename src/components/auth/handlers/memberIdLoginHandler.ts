@@ -126,12 +126,16 @@ export const handleMemberIdLogin = async (
     if (!existingProfile) {
       console.log("Profile not found, creating from member data");
       
-      // Use RLS-enabled function to create profile
-      const { error: profileError } = await supabase.rpc('create_profile', {
-        p_id: existingMember.id,
-        p_email: existingMember.email,
-        p_user_id: signInResult.data.session.user.id
-      });
+      // Insert directly into profiles table with RLS bypassed
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: existingMember.id,
+          email: existingMember.email,
+          user_id: signInResult.data.session.user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
 
       if (profileError) {
         console.error("Profile creation error:", profileError);
