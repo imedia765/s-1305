@@ -72,6 +72,12 @@ export const handleMemberIdLogin = async (
     if (signInResult.error && !existingMember.profile_updated) {
       console.log("Sign in failed, attempting to create new user account");
       
+      // First, check if user already exists
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData.user) {
+        await supabase.auth.signOut();
+      }
+
       const { error: signUpError, data: signUpData } = await supabase.auth.signUp({
         email: existingMember.email,
         password: memberId.toUpperCase(),
@@ -87,6 +93,9 @@ export const handleMemberIdLogin = async (
         console.error("Error creating user account:", signUpError);
         throw new Error("Failed to create user account");
       }
+
+      // Wait a moment for the account to be created
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Try signing in again after creating the account
       signInResult = await supabase.auth.signInWithPassword({
@@ -110,7 +119,7 @@ export const handleMemberIdLogin = async (
 
     const { data: existingProfile } = await supabase
       .from('profiles')
-      .select('email')
+      .select('id')
       .eq('id', existingMember.id)
       .maybeSingle();
 
