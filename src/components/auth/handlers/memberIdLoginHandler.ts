@@ -17,95 +17,67 @@ export const handleMemberIdLogin = async (
   try {
     console.log("Starting member ID login process for:", memberId);
     
-    // Step 1: Check if member exists in the members table with retries
-    const getMember = async (retries = 3): Promise<any> => {
+    // Step 1: Check if member exists with retries
+    const getMemberWithRetry = async (retries = 3) => {
       for (let i = 0; i < retries; i++) {
-        const { data, error } = await supabase
-          .from('members')
-          .select('email, member_number, profile_updated, password_changed')
-          .eq('member_number', memberId)
-          .maybeSingle();
-        
-        if (!error) return { data, error: null };
-        
-        // Wait briefly before retrying
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      return { data: null, error: new Error('Failed to check member after retries') };
-    };
-
-    const { data: existingMember, error: checkError } = await getMember();
-
-    if (checkError) {
-      console.error("Member lookup error:", checkError);
-      throw new Error("Error looking up member details");
-    }
-
-    let memberEmail;
-
-    // Step 2: Handle member creation or retrieval
-    if (!existingMember) {
-      console.log("Member not found, attempting to create:", memberId);
-      
-      const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
-      
-      // Double-check for existing member to handle race conditions
-      const { data: doubleCheck } = await supabase
-        .from('members')
-        .select('email, profile_updated, password_changed')
-        .eq('member_number', memberId)
-        .maybeSingle();
-
-      if (doubleCheck?.email) {
-        console.log("Member exists from parallel creation:", doubleCheck);
-        memberEmail = doubleCheck.email;
-      } else {
         try {
-          // Attempt to create new member with unique constraint handling
-          const { data: newMember, error: insertError } = await supabase
+          const { data, error } = await supabase
             .from('members')
-            .insert({
-              member_number: memberId,
-              full_name: memberId,
-              email: tempEmail,
-              verified: true,
-              profile_updated: false,
-              password_changed: false,
-              email_verified: true,
-              status: 'active'
-            })
-            .select('email')
+            .select('email, member_number, profile_updated, password_changed')
+            .eq('member_number', memberId)
             .maybeSingle();
-
-          if (insertError) {
-            if (insertError.code === '23505') {
-              // Handle race condition with final check
-              const { data: finalCheck } = await supabase
-                .from('members')
-                .select('email')
-                .eq('member_number', memberId)
-                .maybeSingle();
-
-              if (finalCheck?.email) {
-                memberEmail = finalCheck.email;
-              } else {
-                throw new Error("Could not resolve member account after creation attempt");
-              }
-            } else {
-              throw insertError;
-            }
-          } else if (newMember) {
-            memberEmail = newMember.email;
-            console.log("New member created with email:", memberEmail);
-          }
+          
+          if (!error) return data;
+          console.log(`Retry ${i + 1} failed:`, error);
+          await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
-          console.error("Member creation error:", error);
-          throw error;
+          console.error(`Retry ${i + 1} error:`, error);
+          if (i === retries - 1) throw error;
         }
       }
-    } else {
+      return null;
+    };
+
+    const existingMember = await getMemberWithRetry();
+    let memberEmail;
+
+    if (existingMember) {
       memberEmail = existingMember.email;
-      console.log("Existing member found with email:", memberEmail);
+      console.log("Existing member found:", memberEmail);
+    } else {
+      console.log("Member not found, starting creation process");
+      const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
+      
+      // Use a transaction to handle member creation
+      const { data: newMember, error: txError } = await supabase.rpc('create_member_safely', {
+        p_member_number: memberId,
+        p_email: tempEmail,
+        p_full_name: memberId
+      });
+
+      if (txError) {
+        if (txError.code === '23505') {
+          // One final check in case of race condition
+          const { data: finalCheck } = await supabase
+            .from('members')
+            .select('email')
+            .eq('member_number', memberId)
+            .single();
+            
+          if (finalCheck?.email) {
+            memberEmail = finalCheck.email;
+            console.log("Found member after conflict:", memberEmail);
+          } else {
+            throw new Error("Could not resolve member creation conflict");
+          }
+        } else {
+          console.error("Transaction error:", txError);
+          throw txError;
+        }
+      } else if (newMember?.email) {
+        memberEmail = newMember.email;
+        console.log("New member created:", memberEmail);
+      }
     }
 
     if (!memberEmail) {
