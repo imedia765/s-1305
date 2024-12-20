@@ -32,7 +32,7 @@ export const handleMemberIdLogin = async (
           // First try to get existing member
           const { data, error } = await supabase
             .from('members')
-            .select('email, member_number, profile_updated, password_changed')
+            .select('email, member_number, profile_updated, password_changed, full_name')
             .eq('member_number', memberId)
             .maybeSingle();
           
@@ -56,62 +56,42 @@ export const handleMemberIdLogin = async (
     const existingMember = await getMemberWithRetry();
     let memberEmail;
 
-    if (existingMember) {
-      memberEmail = existingMember.email;
-      console.log("Existing member found:", memberEmail);
-    } else {
-      console.log("Member not found, updating profiles");
-      const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
-      
-      // Update or create profile
-      const { data: profileResult, error: profileError } = await supabase
+    if (!existingMember) {
+      console.error("No member found with ID:", memberId);
+      throw new Error("Invalid Member ID");
+    }
+
+    // Step 2: Check if profile exists, if not create it from member data
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('member_number', memberId)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      console.log("Profile not found, creating from member data");
+      const { error: profileError } = await supabase
         .from('profiles')
-        .upsert(
-          {
-            member_number: memberId,
-            email: tempEmail,
-            full_name: memberId,
-            password: password,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            status: 'active'
-          },
-          {
-            onConflict: 'member_number',
-            ignoreDuplicates: false
-          }
-        )
-        .select('email')
-        .single();
+        .insert({
+          member_number: memberId,
+          email: existingMember.email,
+          full_name: existingMember.full_name,
+          password: password,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          status: 'active'
+        });
 
       if (profileError) {
-        console.error("Profile upsert error:", profileError);
-        throw new Error("Could not update profile");
+        console.error("Profile creation error:", profileError);
+        throw new Error("Could not create profile");
       }
-
-      if (profileResult?.email) {
-        memberEmail = profileResult.email;
-        console.log("Profile updated:", memberEmail);
-        
-        // Also update members table
-        const { error: memberError } = await supabase
-          .from('members')
-          .upsert({
-            member_number: memberId,
-            email: memberEmail,
-            full_name: memberId,
-            verified: true,
-            profile_updated: false,
-            password_changed: false,
-            email_verified: true,
-            status: 'active'
-          });
-
-        if (memberError) {
-          console.error("Member update error:", memberError);
-          throw new Error("Could not update member record");
-        }
-      }
+      
+      memberEmail = existingMember.email;
+      console.log("Profile created with email:", memberEmail);
+    } else {
+      memberEmail = existingProfile.email;
+      console.log("Existing profile found:", memberEmail);
     }
 
     if (!memberEmail) {
@@ -122,7 +102,7 @@ export const handleMemberIdLogin = async (
     console.log("Attempting to sign in with email:", memberEmail);
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: memberEmail,
-      password: existingMember?.profile_updated ? password : memberId.toUpperCase(),
+      password: existingMember.profile_updated ? password : memberId.toUpperCase(),
     });
 
     if (signInError) {
