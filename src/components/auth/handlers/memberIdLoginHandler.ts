@@ -63,11 +63,11 @@ export const handleMemberIdLogin = async (
       throw new Error("Invalid Member ID");
     }
 
-    // Step 2: Check if profile exists by member_id
+    // Step 2: Check if profile exists
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('email')
-      .eq('member_id', existingMember.id)
+      .eq('id', existingMember.id)  // Using id instead of member_id
       .maybeSingle();
 
     if (!existingProfile) {
@@ -75,7 +75,7 @@ export const handleMemberIdLogin = async (
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
-          member_id: existingMember.id,
+          id: existingMember.id,  // Using member's id as profile id
           email: existingMember.email,
           user_id: null,
           created_at: new Date().toISOString(),
