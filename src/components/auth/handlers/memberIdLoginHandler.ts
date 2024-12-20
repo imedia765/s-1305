@@ -24,18 +24,25 @@ export const handleMemberIdLogin = async (
     console.log("Starting member ID login process for:", memberId);
     
     // Step 1: Check if member exists with retries
-    const getMemberWithRetry = async (retries = 3) => {
+    const getMemberWithRetry = async (retries = 3): Promise<MemberResponse | null> => {
       for (let i = 0; i < retries; i++) {
         try {
+          console.log(`Attempt ${i + 1} to fetch member ${memberId}`);
           const { data, error } = await supabase
             .from('members')
             .select('email, member_number, profile_updated, password_changed')
             .eq('member_number', memberId)
             .maybeSingle();
           
-          if (!error) return data;
-          console.log(`Retry ${i + 1} failed:`, error);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          if (!error && data) {
+            console.log("Member found:", data);
+            return data as MemberResponse;
+          }
+          
+          if (error) {
+            console.log(`Retry ${i + 1} failed:`, error);
+            if (i < retries - 1) await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         } catch (error) {
           console.error(`Retry ${i + 1} error:`, error);
           if (i === retries - 1) throw error;
@@ -54,44 +61,57 @@ export const handleMemberIdLogin = async (
       console.log("Member not found, starting creation process");
       const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
       
-      // Insert new member directly
-      const { data: newMember, error: insertError } = await supabase
+      // First check if member was created in the meantime
+      const { data: doubleCheck } = await supabase
         .from('members')
-        .insert({
-          member_number: memberId,
-          email: tempEmail,
-          full_name: memberId,
-          verified: true,
-          profile_updated: false,
-          password_changed: false,
-          email_verified: true,
-          status: 'active'
-        })
         .select('email')
-        .single();
+        .eq('member_number', memberId)
+        .maybeSingle();
 
-      if (insertError) {
-        if (insertError.code === '23505') {
-          // One final check in case of race condition
-          const { data: finalCheck } = await supabase
-            .from('members')
-            .select('email')
-            .eq('member_number', memberId)
-            .single();
-            
-          if (finalCheck?.email) {
-            memberEmail = finalCheck.email;
-            console.log("Found member after conflict:", memberEmail);
-          } else {
-            throw new Error("Could not resolve member creation conflict");
-          }
-        } else {
+      if (doubleCheck?.email) {
+        console.log("Member found in double check:", doubleCheck.email);
+        memberEmail = doubleCheck.email;
+      } else {
+        // Try to create new member
+        const { data: newMember, error: insertError } = await supabase
+          .from('members')
+          .insert({
+            member_number: memberId,
+            email: tempEmail,
+            full_name: memberId,
+            verified: true,
+            profile_updated: false,
+            password_changed: false,
+            email_verified: true,
+            status: 'active'
+          })
+          .select('email')
+          .single();
+
+        if (insertError) {
           console.error("Insert error:", insertError);
-          throw insertError;
+          
+          if (insertError.code === '23505') {
+            // One final check in case of race condition
+            const { data: finalCheck } = await supabase
+              .from('members')
+              .select('email')
+              .eq('member_number', memberId)
+              .single();
+              
+            if (finalCheck?.email) {
+              memberEmail = finalCheck.email;
+              console.log("Found member after conflict:", memberEmail);
+            } else {
+              throw new Error("Could not resolve member creation conflict");
+            }
+          } else {
+            throw insertError;
+          }
+        } else if (newMember?.email) {
+          memberEmail = newMember.email;
+          console.log("New member created:", memberEmail);
         }
-      } else if (newMember?.email) {
-        memberEmail = newMember.email;
-        console.log("New member created:", memberEmail);
       }
     }
 
