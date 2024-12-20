@@ -20,7 +20,7 @@ export const handleMemberIdLogin = async (
     // Step 1: Check if member exists in the members table
     const { data: existingMember, error: checkError } = await supabase
       .from('members')
-      .select('email, member_number')
+      .select('email, member_number, profile_updated, password_changed')
       .eq('member_number', memberId)
       .maybeSingle();
 
@@ -40,7 +40,7 @@ export const handleMemberIdLogin = async (
       // First try to get the member again to handle race conditions
       const { data: doubleCheck } = await supabase
         .from('members')
-        .select('email')
+        .select('email, profile_updated, password_changed')
         .eq('member_number', memberId)
         .maybeSingle();
 
@@ -57,6 +57,7 @@ export const handleMemberIdLogin = async (
             email: tempEmail,
             verified: true,
             profile_updated: false,
+            password_changed: false,
             email_verified: true,
             status: 'active'
           })
@@ -68,7 +69,7 @@ export const handleMemberIdLogin = async (
             console.log("Member was created in parallel, fetching existing record");
             const { data: existingMem, error: fetchError } = await supabase
               .from('members')
-              .select('email')
+              .select('email, profile_updated, password_changed')
               .eq('member_number', memberId)
               .single();
 
@@ -94,39 +95,44 @@ export const handleMemberIdLogin = async (
       throw new Error("Could not determine member email");
     }
 
-    // Step 3: Try to sign in first
+    // Step 3: Try to sign in
     console.log("Attempting to sign in with email:", memberEmail);
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: memberEmail,
-      password,
+      password: existingMember?.profile_updated ? password : memberId.toUpperCase(),
     });
 
     if (signInError) {
       console.log("Sign in failed, attempting signup:", signInError);
-      // If sign in fails, try to sign up
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: memberEmail,
-        password,
-        options: {
-          data: {
-            member_id: memberId,
-            member_number: memberId.toUpperCase(),
+      
+      // If sign in fails and profile is not updated, try to sign up
+      if (!existingMember?.profile_updated) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: memberEmail,
+          password: memberId.toUpperCase(),
+          options: {
+            data: {
+              member_id: memberId,
+              member_number: memberId.toUpperCase(),
+            }
+          }
+        });
+
+        if (signUpError) {
+          if (signUpError.message.includes("User already registered")) {
+            console.error("Invalid credentials for existing user");
+            throw new Error("Invalid Member ID or password");
+          } else {
+            console.error("Sign up error:", signUpError);
+            throw signUpError;
           }
         }
-      });
 
-      if (signUpError) {
-        if (signUpError.message.includes("User already registered")) {
-          console.error("Invalid credentials for existing user");
-          throw new Error("Invalid Member ID or password");
-        } else {
-          console.error("Sign up error:", signUpError);
-          throw signUpError;
-        }
+        // Wait for auth to process
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        throw new Error("Invalid password. Please use your updated password to login.");
       }
-
-      // Wait for auth to process
-      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     console.log("Login successful for member:", memberId);
