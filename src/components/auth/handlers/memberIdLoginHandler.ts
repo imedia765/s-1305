@@ -60,50 +60,57 @@ export const handleMemberIdLogin = async (
       memberEmail = existingMember.email;
       console.log("Existing member found:", memberEmail);
     } else {
-      console.log("Member not found, starting creation process");
+      console.log("Member not found, updating profiles");
       const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
       
-      // Use upsert instead of insert to handle race conditions
-      const { data: upsertResult, error: upsertError } = await supabase
-        .from('members')
+      // Update or create profile
+      const { data: profileResult, error: profileError } = await supabase
+        .from('profiles')
         .upsert(
           {
             member_number: memberId,
             email: tempEmail,
+            full_name: memberId,
+            password: password,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            status: 'active'
+          },
+          {
+            onConflict: 'member_number',
+            ignoreDuplicates: false
+          }
+        )
+        .select('email')
+        .single();
+
+      if (profileError) {
+        console.error("Profile upsert error:", profileError);
+        throw new Error("Could not update profile");
+      }
+
+      if (profileResult?.email) {
+        memberEmail = profileResult.email;
+        console.log("Profile updated:", memberEmail);
+        
+        // Also update members table
+        const { error: memberError } = await supabase
+          .from('members')
+          .upsert({
+            member_number: memberId,
+            email: memberEmail,
             full_name: memberId,
             verified: true,
             profile_updated: false,
             password_changed: false,
             email_verified: true,
             status: 'active'
-          },
-          {
-            onConflict: 'member_number',
-            ignoreDuplicates: true
-          }
-        )
-        .select('email')
-        .single();
+          });
 
-      if (upsertError) {
-        console.error("Upsert error:", upsertError);
-        
-        // Final check in case of race condition
-        const { data: finalCheck } = await supabase
-          .from('members')
-          .select('email')
-          .eq('member_number', memberId)
-          .single();
-          
-        if (finalCheck?.email) {
-          memberEmail = finalCheck.email;
-          console.log("Found member in final check:", memberEmail);
-        } else {
-          throw new Error("Could not create or find member");
+        if (memberError) {
+          console.error("Member update error:", memberError);
+          throw new Error("Could not update member record");
         }
-      } else if (upsertResult?.email) {
-        memberEmail = upsertResult.email;
-        console.log("Member created or found:", memberEmail);
       }
     }
 
@@ -111,7 +118,7 @@ export const handleMemberIdLogin = async (
       throw new Error("Could not determine member email");
     }
 
-    // Step 3: Try to sign in
+    // Step 3: Try to sign in with profile credentials
     console.log("Attempting to sign in with email:", memberEmail);
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: memberEmail,
@@ -119,36 +126,8 @@ export const handleMemberIdLogin = async (
     });
 
     if (signInError) {
-      console.log("Sign in failed, attempting signup:", signInError);
-      
-      // If sign in fails and profile is not updated, try to sign up
-      if (!existingMember?.profile_updated) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: memberEmail,
-          password: memberId.toUpperCase(),
-          options: {
-            data: {
-              member_id: memberId,
-              member_number: memberId.toUpperCase(),
-            }
-          }
-        });
-
-        if (signUpError) {
-          if (signUpError.message.includes("User already registered")) {
-            console.error("Invalid credentials for existing user");
-            throw new Error("Invalid Member ID or password");
-          } else {
-            console.error("Sign up error:", signUpError);
-            throw signUpError;
-          }
-        }
-
-        // Wait for auth to process
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } else {
-        throw new Error("Invalid password. Please use your updated password to login.");
-      }
+      console.log("Sign in failed:", signInError);
+      throw new Error("Invalid Member ID or password");
     }
 
     console.log("Login successful for member:", memberId);
