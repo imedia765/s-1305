@@ -92,6 +92,25 @@ export const handleMemberIdLogin = async (
       throw new Error("Could not determine member email");
     }
 
+    // Try to create the auth user first
+    try {
+      console.log("Attempting to create auth user for:", memberEmail);
+      const { data: authUser, error: createUserError } = await supabase.auth.admin.createUser({
+        email: memberEmail,
+        password: password,
+        email_confirm: true
+      });
+
+      if (createUserError && createUserError.message !== "User already registered") {
+        console.error("Error creating auth user:", createUserError);
+        throw createUserError;
+      }
+      console.log("Auth user created or already exists");
+    } catch (error) {
+      console.log("Error in auth user creation, attempting sign in anyway:", error);
+    }
+
+    // Now attempt to sign in
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: memberEmail,
       password,
