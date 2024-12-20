@@ -17,12 +17,24 @@ export const handleMemberIdLogin = async (
   try {
     console.log("Starting member ID login process for:", memberId);
     
-    // Step 1: Check if member exists in the members table
-    const { data: existingMember, error: checkError } = await supabase
-      .from('members')
-      .select('email, member_number, profile_updated, password_changed')
-      .eq('member_number', memberId)
-      .maybeSingle();
+    // Step 1: Check if member exists in the members table with retries
+    const getMember = async (retries = 3): Promise<any> => {
+      for (let i = 0; i < retries; i++) {
+        const { data, error } = await supabase
+          .from('members')
+          .select('email, member_number, profile_updated, password_changed')
+          .eq('member_number', memberId)
+          .maybeSingle();
+        
+        if (!error) return { data, error: null };
+        
+        // Wait briefly before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      return { data: null, error: new Error('Failed to check member after retries') };
+    };
+
+    const { data: existingMember, error: checkError } = await getMember();
 
     if (checkError) {
       console.error("Member lookup error:", checkError);
@@ -37,23 +49,19 @@ export const handleMemberIdLogin = async (
       
       const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
       
-      // First check if member was created in parallel
-      const { data: parallelCheck, error: parallelError } = await supabase
+      // Double-check for existing member to handle race conditions
+      const { data: doubleCheck } = await supabase
         .from('members')
         .select('email, profile_updated, password_changed')
         .eq('member_number', memberId)
         .maybeSingle();
 
-      if (parallelError) {
-        console.error("Parallel check error:", parallelError);
-      }
-
-      if (parallelCheck?.email) {
-        console.log("Member exists from parallel creation:", parallelCheck);
-        memberEmail = parallelCheck.email;
+      if (doubleCheck?.email) {
+        console.log("Member exists from parallel creation:", doubleCheck);
+        memberEmail = doubleCheck.email;
       } else {
         try {
-          // Attempt to create new member
+          // Attempt to create new member with unique constraint handling
           const { data: newMember, error: insertError } = await supabase
             .from('members')
             .insert({
@@ -66,27 +74,22 @@ export const handleMemberIdLogin = async (
               email_verified: true,
               status: 'active'
             })
-            .select('email, profile_updated, password_changed')
+            .select('email')
             .maybeSingle();
 
           if (insertError) {
             if (insertError.code === '23505') {
-              // Handle race condition - try one final time to get the member
-              console.log("Duplicate key detected, attempting final fetch");
-              const { data: finalCheck, error: finalError } = await supabase
+              // Handle race condition with final check
+              const { data: finalCheck } = await supabase
                 .from('members')
-                .select('email, profile_updated, password_changed')
+                .select('email')
                 .eq('member_number', memberId)
                 .maybeSingle();
 
-              if (finalError) {
-                throw finalError;
-              }
-
-              if (finalCheck) {
+              if (finalCheck?.email) {
                 memberEmail = finalCheck.email;
               } else {
-                throw new Error("Could not create or find member account");
+                throw new Error("Could not resolve member account after creation attempt");
               }
             } else {
               throw insertError;
@@ -94,8 +97,6 @@ export const handleMemberIdLogin = async (
           } else if (newMember) {
             memberEmail = newMember.email;
             console.log("New member created with email:", memberEmail);
-          } else {
-            throw new Error("Failed to create member account");
           }
         } catch (error) {
           console.error("Member creation error:", error);
