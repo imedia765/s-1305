@@ -13,6 +13,7 @@ interface MemberResponse {
   member_number: string;
   profile_updated: boolean;
   password_changed: boolean;
+  full_name: string;  // Added this field to fix the type error
 }
 
 export const handleMemberIdLogin = async (
