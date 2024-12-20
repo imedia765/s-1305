@@ -28,6 +28,8 @@ export const handleMemberIdLogin = async (
       for (let i = 0; i < retries; i++) {
         try {
           console.log(`Attempt ${i + 1} to fetch member ${memberId}`);
+          
+          // First try to get existing member
           const { data, error } = await supabase
             .from('members')
             .select('email, member_number, profile_updated, password_changed')
@@ -61,21 +63,11 @@ export const handleMemberIdLogin = async (
       console.log("Member not found, starting creation process");
       const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
       
-      // First check if member was created in the meantime
-      const { data: doubleCheck } = await supabase
+      // Use upsert instead of insert to handle race conditions
+      const { data: upsertResult, error: upsertError } = await supabase
         .from('members')
-        .select('email')
-        .eq('member_number', memberId)
-        .maybeSingle();
-
-      if (doubleCheck?.email) {
-        console.log("Member found in double check:", doubleCheck.email);
-        memberEmail = doubleCheck.email;
-      } else {
-        // Try to create new member
-        const { data: newMember, error: insertError } = await supabase
-          .from('members')
-          .insert({
+        .upsert(
+          {
             member_number: memberId,
             email: tempEmail,
             full_name: memberId,
@@ -84,34 +76,34 @@ export const handleMemberIdLogin = async (
             password_changed: false,
             email_verified: true,
             status: 'active'
-          })
-          .select('email')
-          .single();
-
-        if (insertError) {
-          console.error("Insert error:", insertError);
-          
-          if (insertError.code === '23505') {
-            // One final check in case of race condition
-            const { data: finalCheck } = await supabase
-              .from('members')
-              .select('email')
-              .eq('member_number', memberId)
-              .single();
-              
-            if (finalCheck?.email) {
-              memberEmail = finalCheck.email;
-              console.log("Found member after conflict:", memberEmail);
-            } else {
-              throw new Error("Could not resolve member creation conflict");
-            }
-          } else {
-            throw insertError;
+          },
+          {
+            onConflict: 'member_number',
+            ignoreDuplicates: true
           }
-        } else if (newMember?.email) {
-          memberEmail = newMember.email;
-          console.log("New member created:", memberEmail);
+        )
+        .select('email')
+        .single();
+
+      if (upsertError) {
+        console.error("Upsert error:", upsertError);
+        
+        // Final check in case of race condition
+        const { data: finalCheck } = await supabase
+          .from('members')
+          .select('email')
+          .eq('member_number', memberId)
+          .single();
+          
+        if (finalCheck?.email) {
+          memberEmail = finalCheck.email;
+          console.log("Found member in final check:", memberEmail);
+        } else {
+          throw new Error("Could not create or find member");
         }
+      } else if (upsertResult?.email) {
+        memberEmail = upsertResult.email;
+        console.log("Member created or found:", memberEmail);
       }
     }
 
