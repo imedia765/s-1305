@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { ToastActionElement } from "@/components/ui/toast";
-import { User } from "@supabase/supabase-js";
 
 type Toast = {
   title?: string;
@@ -62,55 +61,62 @@ export const handleMemberIdLogin = async (
       throw new Error("Invalid Member ID");
     }
 
-    // Step 2: Check if user exists in auth, if not create them
-    const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers() as { 
-      data: { users: User[] }, 
-      error: Error | null 
-    };
-    
-    const existingUser = users?.find(u => u.email === existingMember.email);
-
-    if (!existingUser) {
-      console.log("User not found in auth, creating new user");
-      const { error: createUserError } = await supabase.auth.admin.createUser({
-        email: existingMember.email,
-        password: memberId.toUpperCase(),
-        email_confirm: true
-      });
-
-      if (createUserError) {
-        console.error("Error creating auth user:", createUserError);
-        throw new Error("Failed to create user account");
-      }
-    }
-
-    // Step 3: Try to sign in
+    // Step 2: Try to sign in with the provided credentials
     console.log("Attempting to sign in with email:", existingMember.email);
     const { error: signInError, data: signInData } = await supabase.auth.signInWithPassword({
       email: existingMember.email,
       password: existingMember.profile_updated ? password : memberId.toUpperCase(),
     });
 
-    if (signInError) {
-      console.log("Sign in failed:", signInError);
+    // If sign in fails and user hasn't updated their profile, try to create the account
+    if (signInError && !existingMember.profile_updated) {
+      console.log("Sign in failed, attempting to create new user account");
+      
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: existingMember.email,
+        password: memberId.toUpperCase(),
+        options: {
+          data: {
+            member_id: existingMember.id,
+            full_name: existingMember.full_name
+          }
+        }
+      });
+
+      if (signUpError) {
+        console.error("Error creating user account:", signUpError);
+        throw new Error("Failed to create user account");
+      }
+
+      // Try signing in again after creating the account
+      const { error: retryError } = await supabase.auth.signInWithPassword({
+        email: existingMember.email,
+        password: memberId.toUpperCase(),
+      });
+
+      if (retryError) {
+        console.error("Error signing in after account creation:", retryError);
+        throw new Error("Failed to sign in");
+      }
+    } else if (signInError) {
+      console.error("Sign in error:", signInError);
       throw new Error("Invalid Member ID or password");
     }
 
-    // Step 4: After successful sign in, check and create profile if needed
+    // Step 3: After successful sign in, check and create profile if needed
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('email')
       .eq('id', existingMember.id)
       .maybeSingle();
 
-    if (!existingProfile && signInData.session) {
+    if (!existingProfile) {
       console.log("Profile not found, creating from member data");
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
           id: existingMember.id,
           email: existingMember.email,
-          user_id: signInData.session.user.id,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
