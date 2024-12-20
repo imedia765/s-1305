@@ -61,7 +61,25 @@ export const handleMemberIdLogin = async (
       throw new Error("Invalid Member ID");
     }
 
-    // Step 2: Try to sign in first
+    // Step 2: Check if user exists in auth, if not create them
+    const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers();
+    const existingUser = users?.find(u => u.email === existingMember.email);
+
+    if (!existingUser) {
+      console.log("User not found in auth, creating new user");
+      const { error: createUserError } = await supabase.auth.admin.createUser({
+        email: existingMember.email,
+        password: memberId.toUpperCase(),
+        email_confirm: true
+      });
+
+      if (createUserError) {
+        console.error("Error creating auth user:", createUserError);
+        throw new Error("Failed to create user account");
+      }
+    }
+
+    // Step 3: Try to sign in
     console.log("Attempting to sign in with email:", existingMember.email);
     const { error: signInError, data: signInData } = await supabase.auth.signInWithPassword({
       email: existingMember.email,
@@ -73,7 +91,7 @@ export const handleMemberIdLogin = async (
       throw new Error("Invalid Member ID or password");
     }
 
-    // Step 3: After successful sign in, check and create profile if needed
+    // Step 4: After successful sign in, check and create profile if needed
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('email')
