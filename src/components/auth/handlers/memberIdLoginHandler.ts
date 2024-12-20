@@ -81,7 +81,6 @@ export const handleMemberIdLogin = async (
         password: memberId.toUpperCase(),
         options: {
           data: {
-            member_id: existingMember.id,
             full_name: existingMember.full_name
           }
         }
@@ -126,15 +125,13 @@ export const handleMemberIdLogin = async (
 
     if (!existingProfile) {
       console.log("Profile not found, creating from member data");
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: existingMember.id,
-          email: existingMember.email,
-          user_id: signInResult.data.session.user.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+      
+      // Use RLS-enabled function to create profile
+      const { error: profileError } = await supabase.rpc('create_profile', {
+        p_id: existingMember.id,
+        p_email: existingMember.email,
+        p_user_id: signInResult.data.session.user.id
+      });
 
       if (profileError) {
         console.error("Profile creation error:", profileError);
