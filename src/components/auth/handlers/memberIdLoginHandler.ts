@@ -1,6 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/config/supabase";
-import { type Toast } from "@/hooks/use-toast";
+import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
+
+type Toast = {
+  title?: string;
+  description?: React.ReactNode;
+  variant?: "default" | "destructive";
+  action?: ToastActionElement;
+};
 
 export const handleMemberIdLogin = async (
   memberId: string,
