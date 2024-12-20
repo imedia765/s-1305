@@ -61,7 +61,11 @@ export const handleMemberIdLogin = async (
       throw new Error("Invalid Member ID");
     }
 
-    // Step 2: Try to sign in with the provided credentials
+    // Step 2: Sign out any existing session to ensure clean state
+    await supabase.auth.signOut();
+    console.log("Cleared existing session");
+
+    // Step 3: Try to sign in with the provided credentials
     console.log("Attempting to sign in with email:", existingMember.email);
     let signInResult = await supabase.auth.signInWithPassword({
       email: existingMember.email,
@@ -71,12 +75,6 @@ export const handleMemberIdLogin = async (
     // If sign in fails and user hasn't updated their profile, try to create the account
     if (signInResult.error && !existingMember.profile_updated) {
       console.log("Sign in failed, attempting to create new user account");
-      
-      // First, check if user already exists
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData.user) {
-        await supabase.auth.signOut();
-      }
 
       const { error: signUpError, data: signUpData } = await supabase.auth.signUp({
         email: existingMember.email,
@@ -94,7 +92,7 @@ export const handleMemberIdLogin = async (
         throw new Error("Failed to create user account");
       }
 
-      // Wait a moment for the account to be created
+      // Wait for account creation to complete
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Try signing in again after creating the account
@@ -112,15 +110,18 @@ export const handleMemberIdLogin = async (
       throw new Error("Invalid Member ID or password");
     }
 
-    // Step 3: After successful sign in, check and create profile if needed
+    // Step 4: Verify we have a valid session
     if (!signInResult.data.session) {
       throw new Error("No session after sign in");
     }
 
+    console.log("Successfully signed in, checking for existing profile");
+
+    // Step 5: Check for existing profile and create if needed
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('id')
-      .eq('id', existingMember.id)
+      .eq('user_id', signInResult.data.session.user.id)
       .maybeSingle();
 
     if (!existingProfile) {
@@ -131,6 +132,7 @@ export const handleMemberIdLogin = async (
           id: existingMember.id,
           email: existingMember.email,
           user_id: signInResult.data.session.user.id,
+          member_id: existingMember.id,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
