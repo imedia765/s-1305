@@ -6,8 +6,14 @@ type Toast = {
   description?: React.ReactNode;
   variant?: "default" | "destructive";
   action?: ToastActionElement;
-  children?: React.ReactNode;
 };
+
+interface MemberResponse {
+  email: string;
+  member_number: string;
+  profile_updated: boolean;
+  password_changed: boolean;
+}
 
 export const handleMemberIdLogin = async (
   memberId: string,
@@ -48,15 +54,24 @@ export const handleMemberIdLogin = async (
       console.log("Member not found, starting creation process");
       const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
       
-      // Use a transaction to handle member creation
-      const { data: newMember, error: txError } = await supabase.rpc('create_member_safely', {
-        p_member_number: memberId,
-        p_email: tempEmail,
-        p_full_name: memberId
-      });
+      // Insert new member directly
+      const { data: newMember, error: insertError } = await supabase
+        .from('members')
+        .insert({
+          member_number: memberId,
+          email: tempEmail,
+          full_name: memberId,
+          verified: true,
+          profile_updated: false,
+          password_changed: false,
+          email_verified: true,
+          status: 'active'
+        })
+        .select('email')
+        .single();
 
-      if (txError) {
-        if (txError.code === '23505') {
+      if (insertError) {
+        if (insertError.code === '23505') {
           // One final check in case of race condition
           const { data: finalCheck } = await supabase
             .from('members')
@@ -71,8 +86,8 @@ export const handleMemberIdLogin = async (
             throw new Error("Could not resolve member creation conflict");
           }
         } else {
-          console.error("Transaction error:", txError);
-          throw txError;
+          console.error("Insert error:", insertError);
+          throw insertError;
         }
       } else if (newMember?.email) {
         memberEmail = newMember.email;

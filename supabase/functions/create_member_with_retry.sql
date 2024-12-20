@@ -1,9 +1,12 @@
-create or replace function create_member_safely(
+create or replace function create_member_with_retry(
   p_member_number text,
   p_email text,
   p_full_name text
 ) returns table (
-  email text
+  email text,
+  member_number text,
+  profile_updated boolean,
+  password_changed boolean
 ) language plpgsql security definer as $$
 declare
   v_member record;
@@ -13,7 +16,12 @@ begin
   where member_number = p_member_number;
   
   if found then
-    return query select v_member.email;
+    return query select 
+      v_member.email,
+      v_member.member_number,
+      v_member.profile_updated,
+      v_member.password_changed
+    from members where id = v_member.id;
     return;
   end if;
 
@@ -40,12 +48,10 @@ begin
   )
   on conflict (member_number) do update 
     set member_number = excluded.member_number
-  returning email;
-  
-  exception when unique_violation then
-    -- If we hit a race condition, return the existing member
-    return query 
-    select email from members 
-    where member_number = p_member_number;
+  returning 
+    email,
+    member_number,
+    profile_updated,
+    password_changed;
 end;
 $$;
