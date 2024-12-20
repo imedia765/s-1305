@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { SUPABASE_URL, SUPABASE_KEY } from "@/config/supabase";
 import type { ToastActionElement } from "@/components/ui/toast";
 
 type Toast = {
@@ -38,22 +37,38 @@ export const handleMemberIdLogin = async (
       
       const tempEmail = `${memberId.toLowerCase()}@temp.pwaburton.org`;
       
-      // Use a transaction to ensure atomicity
+      // Insert member directly without using RPC
       const { data: newMember, error: createError } = await supabase
-        .rpc('create_member_with_retry', {
-          p_member_number: memberId,
-          p_full_name: memberId,
-          p_email: tempEmail,
-          max_retries: 3
-        });
+        .from('members')
+        .insert([{
+          member_number: memberId,
+          full_name: memberId,
+          email: tempEmail,
+          verified: true,
+          profile_updated: false,
+          email_verified: true,
+          status: 'active'
+        }])
+        .select()
+        .single();
 
       if (createError) {
-        console.error("Error creating member:", createError);
-        throw new Error("Failed to create member account");
+        if (createError.code === '23505') { // Unique violation
+          console.log("Member already exists, proceeding with login");
+          const { data: existingMem } = await supabase
+            .from('members')
+            .select('email')
+            .eq('member_number', memberId)
+            .single();
+          memberEmail = existingMem?.email;
+        } else {
+          console.error("Error creating member:", createError);
+          throw new Error("Failed to create member account");
+        }
+      } else {
+        memberEmail = tempEmail;
+        console.log("New member created with email:", memberEmail);
       }
-
-      memberEmail = tempEmail;
-      console.log("New member created with email:", memberEmail);
     } else {
       memberEmail = existingMember.email;
       console.log("Existing member found with email:", memberEmail);
@@ -63,28 +78,16 @@ export const handleMemberIdLogin = async (
       throw new Error("Could not determine member email");
     }
 
-    // Step 3: Check if auth user exists
-    const { data: { user: existingUser }, error: userCheckError } = await supabase.auth.admin.getUserByEmail(memberEmail);
-    
-    if (userCheckError) {
-      console.error("Error checking auth user:", userCheckError);
-    }
+    // Step 3: Try to sign in first
+    console.log("Attempting to sign in with email:", memberEmail);
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: memberEmail,
+      password,
+    });
 
-    if (existingUser) {
-      console.log("Auth user exists, attempting sign in");
-      // Try to sign in
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: memberEmail,
-        password,
-      });
-
-      if (signInError) {
-        console.error("Sign in error:", signInError);
-        throw new Error("Invalid Member ID or password");
-      }
-    } else {
-      console.log("Auth user does not exist, creating new user");
-      // Create new auth user
+    if (signInError) {
+      console.log("Sign in failed, attempting signup:", signInError);
+      // If sign in fails, try to sign up
       const { error: signUpError } = await supabase.auth.signUp({
         email: memberEmail,
         password,
@@ -97,18 +100,9 @@ export const handleMemberIdLogin = async (
       });
 
       if (signUpError) {
-        // If user was created in a race condition, try signing in
         if (signUpError.message.includes("User already registered")) {
-          console.log("User was created in parallel, attempting sign in");
-          const { error: retryError } = await supabase.auth.signInWithPassword({
-            email: memberEmail,
-            password,
-          });
-
-          if (retryError) {
-            console.error("Retry sign in error:", retryError);
-            throw new Error("Invalid Member ID or password");
-          }
+          console.error("Invalid credentials for existing user");
+          throw new Error("Invalid Member ID or password");
         } else {
           console.error("Sign up error:", signUpError);
           throw signUpError;
