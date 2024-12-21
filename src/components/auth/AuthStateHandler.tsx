@@ -17,43 +17,17 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
         
         if (error) {
           console.error("Session check error:", error);
-          handleAuthError(error);
           return;
         }
         
         if (session) {
-          console.log("Active session found");
+          console.log("Active session found, redirecting to admin/profile");
           setIsLoggedIn(true);
           navigate("/admin/profile");
-        } else {
-          console.log("No active session");
-          setIsLoggedIn(false);
-          navigate("/login");
         }
       } catch (error) {
         console.error("Session check failed:", error);
-        handleAuthError(error);
       }
-    };
-
-    const handleAuthError = async (error: any) => {
-      console.error("Auth error occurred:", error);
-      
-      // Clear any stale auth data
-      await supabase.auth.signOut();
-      setIsLoggedIn(false);
-      
-      // Clear local storage auth data
-      localStorage.removeItem('supabase.auth.token');
-      sessionStorage.removeItem('supabase.auth.token');
-      
-      toast({
-        title: "Authentication Error",
-        description: "Please sign in again",
-        variant: "destructive",
-      });
-      
-      navigate("/login");
     };
 
     checkSession();
@@ -77,26 +51,14 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
         case "SIGNED_OUT":
           console.log("User signed out");
           setIsLoggedIn(false);
-          navigate("/login");
           break;
           
         case "TOKEN_REFRESHED":
           console.log("Token refreshed successfully");
-          if (session) {
-            setIsLoggedIn(true);
-          }
           break;
           
         case "USER_UPDATED":
           console.log("User data updated");
-          break;
-          
-        case "INITIAL_SESSION":
-          if (!session) {
-            console.log("No initial session");
-            setIsLoggedIn(false);
-            navigate("/login");
-          }
           break;
       }
     });
@@ -125,9 +87,26 @@ const handleSuccessfulLogin = async (session: any, navigate: (path: string) => v
       return;
     }
 
-    // Always redirect to profile page after login
+    // Check if email is temporary
+    if (member && user.email.endsWith('@temp.pwaburton.org')) {
+      navigate("/admin/profile");
+      return;
+    }
+
+    // Check if profile needs to be updated
+    if (member && !member.profile_updated) {
+      navigate("/admin/profile");
+      return;
+    }
+
+    // Check if password needs to be changed
+    if (member && !member.password_changed) {
+      navigate("/change-password");
+      return;
+    }
+
+    // If all checks pass, redirect to profile
     navigate("/admin/profile");
-    
   } catch (error) {
     console.error("Error in handleSuccessfulLogin:", error);
     navigate("/admin/profile");
