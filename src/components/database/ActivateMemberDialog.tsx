@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -60,10 +60,10 @@ export function ActivateMemberDialog({
     console.log('Activating member:', member.id, 'with collector:', selectedCollectorId);
 
     try {
-      // Get collector details for member number generation
+      // Get collector details
       const { data: collector } = await supabase
         .from('collectors')
-        .select('name, prefix, number')
+        .select('name')
         .eq('id', selectedCollectorId)
         .single();
 
@@ -82,7 +82,10 @@ export function ActivateMemberDialog({
         })
         .eq('id', member.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error updating member:', updateError);
+        throw updateError;
+      }
 
       toast({
         title: "Member Activated",
@@ -95,7 +98,7 @@ export function ActivateMemberDialog({
       console.error('Error activating member:', error);
       toast({
         title: "Error",
-        description: "Failed to activate member",
+        description: "Failed to activate member. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -108,6 +111,9 @@ export function ActivateMemberDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Activate Member: {member.full_name}</DialogTitle>
+          <DialogDescription>
+            Select a collector to activate this member. This will generate a member number and enable their account.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
