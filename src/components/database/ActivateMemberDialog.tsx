@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { CollectorSelect } from "@/components/collectors/CollectorSelect";
@@ -61,13 +61,13 @@ export function ActivateMemberDialog({
 
     try {
       // Get collector details
-      const { data: collector } = await supabase
+      const { data: collector, error: collectorError } = await supabase
         .from('collectors')
         .select('name')
         .eq('id', selectedCollectorId)
         .single();
 
-      if (!collector) {
+      if (collectorError || !collector) {
         throw new Error('Selected collector not found');
       }
 
@@ -112,6 +112,8 @@ export function ActivateMemberDialog({
         <DialogHeader>
           <DialogTitle>Activate Member: {member.full_name}</DialogTitle>
           <DialogDescription>
+            Member ID: {member.id}
+            <br />
             Select a collector to activate this member. This will generate a member number and enable their account.
           </DialogDescription>
         </DialogHeader>
