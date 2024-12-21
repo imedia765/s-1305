@@ -23,18 +23,25 @@ export function ActivateMemberDialog({
   onUpdate
 }: ActivateMemberDialogProps) {
   const [selectedCollectorId, setSelectedCollectorId] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   
+  // Fetch active collectors
   const { data: collectors } = useQuery({
     queryKey: ['collectors'],
     queryFn: async () => {
+      console.log('Fetching active collectors...');
       const { data, error } = await supabase
         .from('collectors')
         .select('*')
         .eq('active', true)
         .order('name');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching collectors:', error);
+        throw error;
+      }
+      console.log('Fetched collectors:', data);
       return data;
     }
   });
@@ -49,12 +56,27 @@ export function ActivateMemberDialog({
       return;
     }
 
+    setIsLoading(true);
+    console.log('Activating member:', member.id, 'with collector:', selectedCollectorId);
+
     try {
+      // Get collector details for member number generation
+      const { data: collector } = await supabase
+        .from('collectors')
+        .select('name, prefix, number')
+        .eq('id', selectedCollectorId)
+        .single();
+
+      if (!collector) {
+        throw new Error('Selected collector not found');
+      }
+
+      // Update member with collector and status
       const { error: updateError } = await supabase
         .from('members')
         .update({ 
           collector_id: selectedCollectorId,
-          collector: collectors?.find(c => c.id === selectedCollectorId)?.name,
+          collector: collector.name,
           status: 'active',
           updated_at: new Date().toISOString()
         })
@@ -64,7 +86,7 @@ export function ActivateMemberDialog({
 
       toast({
         title: "Member Activated",
-        description: "Member has been successfully activated and assigned a collector"
+        description: "Member has been successfully activated and assigned to collector"
       });
       
       onUpdate();
@@ -76,6 +98,8 @@ export function ActivateMemberDialog({
         description: "Failed to activate member",
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -96,11 +120,11 @@ export function ActivateMemberDialog({
             />
           </div>
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={isLoading}>
               Cancel
             </Button>
-            <Button onClick={handleActivate}>
-              Activate Member
+            <Button onClick={handleActivate} disabled={isLoading}>
+              {isLoading ? "Activating..." : "Activate Member"}
             </Button>
           </div>
         </div>
