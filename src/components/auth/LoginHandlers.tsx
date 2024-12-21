@@ -75,6 +75,8 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
     const password = formData.get("memberPassword") as string;
 
     try {
+      console.log('Attempting login with member ID:', memberId);
+      
       // First, get the member details
       const { data: member, error: memberError } = await supabase
         .from('members')
@@ -82,12 +84,15 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
         .eq('member_number', memberId)
         .maybeSingle();
 
+      console.log('Member lookup result:', { member, memberError });
+
       if (memberError) {
         console.error('Member lookup error:', memberError);
         throw new Error("Error checking member status");
       }
 
       if (!member) {
+        console.log('No member found with ID:', memberId);
         throw new Error("Invalid Member ID. Please check your credentials and try again.");
       }
 
@@ -96,6 +101,7 @@ export const useLoginHandlers = (setIsLoggedIn: (value: boolean) => void) => {
       }
 
       // Attempt to sign in with the email
+      console.log('Attempting sign in for member:', memberId);
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: member.email,
         password: password,
