@@ -46,6 +46,12 @@ export function ActivateMemberDialog({
     }
   });
 
+  // Get selected collector details for preview
+  const selectedCollector = collectors?.find(c => c.id === selectedCollectorId);
+  const previewMemberNumber = selectedCollector 
+    ? `${selectedCollector.prefix}${selectedCollector.number}XXX` 
+    : 'Select a collector to preview';
+
   const handleActivate = async () => {
     if (!selectedCollectorId) {
       toast({
@@ -112,9 +118,11 @@ export function ActivateMemberDialog({
         <DialogHeader>
           <DialogTitle>Activate Member: {member.full_name}</DialogTitle>
           <DialogDescription>
-            Member ID: {member.id}
+            Current Member ID: {member.id}
             <br />
-            Select a collector to activate this member. This will generate a member number and enable their account.
+            Preview Member Number: {previewMemberNumber}
+            <br />
+            Select a collector to activate this member. The member number will be automatically generated using the collector's prefix and a sequential number.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
