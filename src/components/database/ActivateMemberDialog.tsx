@@ -69,7 +69,7 @@ export function ActivateMemberDialog({
       // Get collector details
       const { data: collector, error: collectorError } = await supabase
         .from('collectors')
-        .select('name')
+        .select('*')  // Changed from just 'name' to get all collector details
         .eq('id', selectedCollectorId)
         .single();
 
@@ -78,7 +78,7 @@ export function ActivateMemberDialog({
       }
 
       // Update member with collector and status
-      const { error: updateError } = await supabase
+      const { data: updatedMember, error: updateError } = await supabase
         .from('members')
         .update({ 
           collector_id: selectedCollectorId,
@@ -86,16 +86,23 @@ export function ActivateMemberDialog({
           status: 'active',
           updated_at: new Date().toISOString()
         })
-        .eq('id', member.id);
+        .eq('id', member.id)
+        .select()
+        .single();
 
       if (updateError) {
         console.error('Error updating member:', updateError);
         throw updateError;
       }
 
+      // Verify the update was successful
+      if (!updatedMember?.member_number) {
+        throw new Error('Member number was not generated');
+      }
+
       toast({
         title: "Member Activated",
-        description: "Member has been successfully activated and assigned to collector"
+        description: `Member has been successfully activated with number: ${updatedMember.member_number}`
       });
       
       onUpdate();
