@@ -15,27 +15,29 @@ export function NavigationMenu() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        setLoading(true);
+        console.log("Checking session...");
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error("Session check error:", error);
           setIsLoggedIn(false);
+          setLoading(false);
           return;
         }
 
         if (!session) {
+          console.log("No active session found");
           const { data: { session: refreshedSession }, error: refreshError } = 
             await supabase.auth.refreshSession();
           
           if (refreshError) {
             console.error("Session refresh error:", refreshError);
             setIsLoggedIn(false);
-            return;
+          } else {
+            setIsLoggedIn(!!refreshedSession);
           }
-          
-          setIsLoggedIn(!!refreshedSession);
         } else {
+          console.log("Active session found");
           setIsLoggedIn(true);
         }
       } catch (error) {
@@ -53,19 +55,28 @@ export function NavigationMenu() {
       
       if (event === "SIGNED_IN" && session) {
         setIsLoggedIn(true);
-        const { data: userProfile } = await supabase
-          .from('profiles')
-          .select('full_name, email')
-          .eq('id', session.user.id)
-          .single();
+        try {
+          const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', session.user.id)
+            .single();
 
-        const userName = userProfile?.full_name || userProfile?.email || 'User';
-        
-        toast({
-          title: "Signed in successfully",
-          description: `Welcome back, ${userName}!`,
-          duration: 3000, // 3 seconds timeout
-        });
+          const userName = userProfile?.full_name || userProfile?.email || 'User';
+          
+          toast({
+            title: "Signed in successfully",
+            description: `Welcome back, ${userName}!`,
+            duration: 3000,
+          });
+        } catch (error) {
+          console.error("Error fetching user profile:", error);
+          toast({
+            title: "Signed in successfully",
+            description: "Welcome back!",
+            duration: 3000,
+          });
+        }
       } else if (event === "SIGNED_OUT") {
         setIsLoggedIn(false);
         toast({
@@ -113,8 +124,22 @@ export function NavigationMenu() {
     }
   };
 
+  // Only show loading state for initial load
   if (loading) {
-    return <div className="flex items-center justify-center p-4">Loading...</div>;
+    return (
+      <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+        <div className="container flex h-14 items-center justify-between">
+          <Link to="/" className="flex items-center space-x-2">
+            <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              PWA Burton
+            </span>
+          </Link>
+          <div className="flex items-center space-x-2">
+            <ThemeToggle />
+          </div>
+        </div>
+      </nav>
+    );
   }
 
   return (
