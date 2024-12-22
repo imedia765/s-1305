@@ -53,12 +53,26 @@ export function NavigationMenu() {
       
       if (event === "SIGNED_IN" && session) {
         setIsLoggedIn(true);
+        const { data: userProfile } = await supabase
+          .from('profiles')
+          .select('full_name, email')
+          .eq('id', session.user.id)
+          .single();
+
+        const userName = userProfile?.full_name || userProfile?.email || 'User';
+        
         toast({
           title: "Signed in successfully",
-          description: "Welcome back!",
+          description: `Welcome back, ${userName}!`,
+          duration: 3000, // 3 seconds timeout
         });
       } else if (event === "SIGNED_OUT") {
         setIsLoggedIn(false);
+        toast({
+          title: "Logged out successfully",
+          description: "Come back soon!",
+          duration: 3000,
+        });
       } else if (event === "TOKEN_REFRESHED") {
         console.log("Token refreshed successfully");
         setIsLoggedIn(true);
@@ -82,21 +96,19 @@ export function NavigationMenu() {
           title: "Logout failed",
           description: error.message,
           variant: "destructive",
+          duration: 3000,
         });
         return;
       }
       
       setIsLoggedIn(false);
-      toast({
-        title: "Logged out successfully",
-        description: "Come back soon!",
-      });
     } catch (error) {
       console.error("Logout error:", error);
       toast({
         title: "Logout failed",
         description: "An unexpected error occurred",
         variant: "destructive",
+        duration: 3000,
       });
     }
   };
