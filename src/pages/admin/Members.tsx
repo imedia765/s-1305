@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { UserPlus } from "lucide-react";
 import { ActivateMemberDialog } from "@/components/database/ActivateMemberDialog";
+import { MemberTableRow } from "@/components/members/MemberTableRow";
+import { MemberTableHeader } from "@/components/members/MemberTableHeader";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -89,16 +91,7 @@ export default function Members() {
         <ScrollArea className="h-[calc(100vh-220px)]">
           <div className="rounded-md border">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Member Number</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Password Status</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
+              <MemberTableHeader />
               <TableBody>
                 {isLoading ? (
                   <TableRow>
@@ -110,75 +103,21 @@ export default function Members() {
                   </TableRow>
                 ) : (
                   filteredMembers.map((member) => (
-                    <TableRow key={member.id}>
-                      <TableCell>{member.member_number || 'Pending Assignment'}</TableCell>
-                      <TableCell>{member.full_name}</TableCell>
-                      <TableCell>{member.email || 'Not set'}</TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={member.password_changed ? "success" : "destructive"}
-                        >
-                          {member.password_changed ? 'Updated' : 'Not Updated'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={
-                            member.status === 'active' ? "success" : 
-                            member.status === 'suspended' ? "destructive" :
-                            "secondary"
-                          }
-                        >
-                          {!member.member_number ? 'Pending Assignment' : 
-                           member.status === 'pending' ? 'Pending Activation' :
-                           member.status || 'Unknown'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {(!member.member_number || member.status === 'pending') && (
-                            <Button
-                              size="sm"
-                              onClick={() => setActivatingMember(member)}
-                              className="flex items-center gap-2"
-                            >
-                              <UserPlus className="h-4 w-4" />
-                              Activate
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleMember(member.id)}
-                          >
-                            {expandedMember === member.id ? "Less Info" : "More Info"}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <MemberTableRow
+                      key={member.id}
+                      member={member}
+                      expandedMember={expandedMember}
+                      toggleMember={toggleMember}
+                      setActivatingMember={setActivatingMember}
+                      editingNotes={editingNotes}
+                      setEditingNotes={setEditingNotes}
+                      onUpdate={handleUpdate}
+                    />
                   ))
                 )}
               </TableBody>
             </Table>
           </div>
-
-          {expandedMember && (
-            <div className="mt-4">
-              {filteredMembers?.map((member) => (
-                member.id === expandedMember && (
-                  <MemberCard
-                    key={member.id}
-                    member={member}
-                    expandedMember={expandedMember}
-                    editingNotes={editingNotes}
-                    toggleMember={toggleMember}
-                    setEditingNotes={setEditingNotes}
-                    onUpdate={handleUpdate}
-                  />
-                )
-              ))}
-            </div>
-          )}
 
           <MembersPagination 
             page={page}
