@@ -53,19 +53,35 @@ export function NavigationMenu() {
       
       if (event === "SIGNED_IN" && session) {
         setIsLoggedIn(true);
-        const { data: userProfile } = await supabase
-          .from('profiles')
-          .select('full_name, email')
-          .eq('id', session.user.id)
-          .single();
+        try {
+          console.log("Fetching user profile for session user:", session.user.id);
+          const { data: userProfile, error } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', session.user.id)
+            .single();
 
-        const userName = userProfile?.full_name || userProfile?.email || 'User';
-        
-        toast({
-          title: "Signed in successfully",
-          description: `Welcome back, ${userName}!`,
-          duration: 3000, // 3 seconds timeout
-        });
+          if (error) {
+            console.error("Error fetching user profile:", error);
+            throw error;
+          }
+
+          console.log("User profile fetched:", userProfile);
+          const userName = userProfile?.full_name || userProfile?.email || 'User';
+          
+          toast({
+            title: "Signed in successfully",
+            description: `Welcome back, ${userName}!`,
+            duration: 3000,
+          });
+        } catch (error) {
+          console.error("Error handling sign in:", error);
+          toast({
+            title: "Signed in successfully",
+            description: "Welcome back!",
+            duration: 3000,
+          });
+        }
       } else if (event === "SIGNED_OUT") {
         setIsLoggedIn(false);
         toast({
