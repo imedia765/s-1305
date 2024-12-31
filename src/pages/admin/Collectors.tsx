@@ -54,11 +54,17 @@ export default function Collectors() {
           .trim();
       };
 
+      // Log all unique collector names from members table
+      const uniqueCollectorNames = [...new Set(membersData.map(m => m.collector).filter(Boolean))];
+      console.log('Unique collector names in members table:', uniqueCollectorNames);
+
       // Map members to their collectors using normalized name matching
       const enhancedCollectorsData = collectorsData.map(collector => {
+        console.log(`\nProcessing collector: ${collector.name}`);
+        
         const collectorMembers = membersData.filter(member => {
           if (!member.collector) {
-            console.log(`Member ${member.full_name} has no collector assigned`);
+            console.log(`Member ${member.full_name} (${member.member_number}) has no collector assigned`);
             return false;
           }
           
@@ -71,10 +77,22 @@ export default function Collectors() {
             console.log(`Potential partial match - Collector: ${collector.name}, Member's collector: ${member.collector}`);
           }
           
+          if (isMatch) {
+            console.log(`Matched member ${member.full_name} (${member.member_number}) to collector ${collector.name}`);
+          }
+          
           return isMatch;
         });
 
         console.log(`Collector ${collector.name} has ${collectorMembers.length} members`);
+        
+        // Log the first few members for verification
+        if (collectorMembers.length > 0) {
+          console.log('Sample members:', collectorMembers.slice(0, 3).map(m => ({
+            name: m.full_name,
+            number: m.member_number
+          })));
+        }
 
         return {
           ...collector,
@@ -84,17 +102,34 @@ export default function Collectors() {
 
       // Log any members that weren't matched to any collector
       const unmatchedMembers = membersData.filter(member => {
+        if (!member.collector) return false;
+        
         return !collectorsData.some(collector => 
-          normalizeCollectorName(collector.name) === normalizeCollectorName(member.collector || '')
+          normalizeCollectorName(collector.name) === normalizeCollectorName(member.collector)
         );
       });
 
       if (unmatchedMembers.length > 0) {
-        console.log('Unmatched members:', unmatchedMembers.map(m => ({
+        console.log('\nUnmatched members:', unmatchedMembers.map(m => ({
           name: m.full_name,
+          number: m.member_number,
           collector: m.collector
         })));
       }
+
+      // Log potential name variations that might cause matching issues
+      console.log('\nCollector name variations found:');
+      collectorsData.forEach(collector => {
+        const variations = membersData
+          .filter(m => m.collector && 
+            normalizeCollectorName(m.collector).includes(normalizeCollectorName(collector.name)))
+          .map(m => m.collector)
+          .filter((value, index, self) => self.indexOf(value) === index);
+        
+        if (variations.length > 1) {
+          console.log(`${collector.name} variations:`, variations);
+        }
+      });
 
       return enhancedCollectorsData;
     }
