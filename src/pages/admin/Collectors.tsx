@@ -32,106 +32,44 @@ export default function Collectors() {
 
       console.log('Fetched collectors:', collectorsData?.length);
 
-      // Then, get all members
+      // Then, get all members with their collector information
       const { data: membersData, error: membersError } = await supabase
         .from('members')
-        .select('*')
-        .order('full_name');
+        .select('id, collector_id, collector')
+        .eq('status', 'active');
 
       if (membersError) {
         console.error('Error fetching members:', membersError);
         throw membersError;
       }
 
-      console.log('Fetched total members:', membersData?.length);
+      // Create a map of collector IDs to their members
+      const collectorMembersMap = new Map();
+      membersData?.forEach(member => {
+        if (member.collector_id) {
+          const currentMembers = collectorMembersMap.get(member.collector_id) || [];
+          collectorMembersMap.set(member.collector_id, [...currentMembers, member]);
+        }
+      });
 
-      // Helper function to normalize collector names for comparison
-      const normalizeCollectorName = (name: string) => {
-        if (!name) return '';
-        return name.toLowerCase()
-          .replace(/^(mr\.?|mrs\.?|ms\.?)\s+/i, '') // Remove titles
-          .replace(/\([^)]*\)/g, '') // Remove anything in parentheses
-          .replace(/[\/&,.-]/g, ' ') // Replace special characters with spaces
-          .replace(/\s+/g, ' ')      // Normalize spaces
-          .trim();
-      };
-
-      // Log all unique collector names from members table
-      const uniqueCollectorNames = [...new Set(membersData.map(m => m.collector).filter(Boolean))];
-      console.log('Unique collector names in members table:', uniqueCollectorNames);
-
-      // Map members to their collectors using normalized name matching
-      const enhancedCollectorsData = collectorsData.map(collector => {
-        console.log(`\nProcessing collector: ${collector.name}`);
-        
-        const collectorMembers = membersData.filter(member => {
-          if (!member.collector) {
-            console.log(`Member ${member.full_name} (${member.member_number}) has no collector assigned`);
-            return false;
-          }
-          
-          const normalizedCollectorName = normalizeCollectorName(collector.name);
-          const normalizedMemberCollector = normalizeCollectorName(member.collector);
-          
-          // Check for exact match or if member's collector contains collector's name
-          const isMatch = normalizedCollectorName === normalizedMemberCollector ||
-                         normalizedMemberCollector.includes(normalizedCollectorName);
-          
-          if (isMatch) {
-            console.log(`Matched member ${member.full_name} (${member.member_number}) to collector ${collector.name}`);
-          }
-          
-          return isMatch;
-        });
-
+      // Enhance collectors with their members
+      const enhancedCollectorsData = collectorsData?.map(collector => {
+        const collectorMembers = collectorMembersMap.get(collector.id) || [];
         console.log(`Collector ${collector.name} has ${collectorMembers.length} members`);
         
-        // Log the first few members for verification
-        if (collectorMembers.length > 0) {
-          console.log('Sample members:', collectorMembers.slice(0, 3).map(m => ({
-            name: m.full_name,
-            number: m.member_number
-          })));
-        }
-
         return {
           ...collector,
           members: collectorMembers
         };
       });
 
-      // Log any members that weren't matched to any collector
-      const unmatchedMembers = membersData.filter(member => {
-        if (!member.collector) return false;
-        
-        return !collectorsData.some(collector => {
-          const normalizedCollectorName = normalizeCollectorName(collector.name);
-          const normalizedMemberCollector = normalizeCollectorName(member.collector);
-          return normalizedCollectorName === normalizedMemberCollector ||
-                 normalizedMemberCollector.includes(normalizedCollectorName);
-        });
-      });
+      // Log total active members
+      const totalActiveMembers = membersData?.length || 0;
+      console.log('Fetched total active members:', totalActiveMembers);
 
-      if (unmatchedMembers.length > 0) {
-        console.log('\nUnmatched members:', unmatchedMembers.map(m => ({
-          name: m.full_name,
-          number: m.member_number,
-          collector: m.collector
-        })));
-      }
-
-      // Log potential name variations that might cause matching issues
-      console.log('\nCollector name variations found:');
-      collectorsData.forEach(collector => {
-        const variations = membersData
-          .filter(m => m.collector && 
-            normalizeCollectorName(m.collector).includes(normalizeCollectorName(collector.name)))
-          .map(m => m.collector)
-          .filter((value, index, self) => self.indexOf(value) === index);
-        
-        if (variations.length > 1) {
-          console.log(`${collector.name} variations:`, variations);
-        }
+      // Log member counts for each collector
+      enhancedCollectorsData?.forEach(collector => {
+        console.log(`Collector ${collector.name} has ${collector.members.length} active members`);
       });
 
       return enhancedCollectorsData;
