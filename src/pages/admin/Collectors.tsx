@@ -49,8 +49,10 @@ export default function Collectors() {
       const normalizeCollectorName = (name: string) => {
         if (!name) return '';
         return name.toLowerCase()
-          .replace(/[\/&,.-]/g, '') // Remove special characters
-          .replace(/\s+/g, '')      // Remove all whitespace
+          .replace(/^(mr\.?|mrs\.?|ms\.?)\s+/i, '') // Remove titles
+          .replace(/\([^)]*\)/g, '') // Remove anything in parentheses
+          .replace(/[\/&,.-]/g, ' ') // Replace special characters with spaces
+          .replace(/\s+/g, ' ')      // Normalize spaces
           .trim();
       };
 
@@ -71,11 +73,9 @@ export default function Collectors() {
           const normalizedCollectorName = normalizeCollectorName(collector.name);
           const normalizedMemberCollector = normalizeCollectorName(member.collector);
           
-          const isMatch = normalizedCollectorName === normalizedMemberCollector;
-          
-          if (!isMatch && normalizedMemberCollector.includes(normalizedCollectorName)) {
-            console.log(`Potential partial match - Collector: ${collector.name}, Member's collector: ${member.collector}`);
-          }
+          // Check for exact match or if member's collector contains collector's name
+          const isMatch = normalizedCollectorName === normalizedMemberCollector ||
+                         normalizedMemberCollector.includes(normalizedCollectorName);
           
           if (isMatch) {
             console.log(`Matched member ${member.full_name} (${member.member_number}) to collector ${collector.name}`);
@@ -104,9 +104,12 @@ export default function Collectors() {
       const unmatchedMembers = membersData.filter(member => {
         if (!member.collector) return false;
         
-        return !collectorsData.some(collector => 
-          normalizeCollectorName(collector.name) === normalizeCollectorName(member.collector)
-        );
+        return !collectorsData.some(collector => {
+          const normalizedCollectorName = normalizeCollectorName(collector.name);
+          const normalizedMemberCollector = normalizeCollectorName(member.collector);
+          return normalizedCollectorName === normalizedMemberCollector ||
+                 normalizedMemberCollector.includes(normalizedCollectorName);
+        });
       });
 
       if (unmatchedMembers.length > 0) {
