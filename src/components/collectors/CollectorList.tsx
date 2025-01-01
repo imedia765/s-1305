@@ -1,5 +1,6 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CollectorCard } from "./CollectorCard";
+import { useToast } from "@/components/ui/use-toast";
 
 interface CollectorListProps {
   collectors: any[];
@@ -20,6 +21,8 @@ export function CollectorList({
   isLoading,
   searchTerm,
 }: CollectorListProps) {
+  const { toast } = useToast();
+
   // Filter collectors based on search term
   const filteredCollectors = collectors?.filter(collector => {
     const matchesName = collector.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -29,19 +32,26 @@ export function CollectorList({
     // Count all members regardless of status
     const totalMembers = collector.members?.length || 0;
     
-    // Special logging for MT05 and SH09
-    if (collector.prefix === 'MT' && collector.number === '05') {
-      console.log(`MT05 - ${collector.name} has ${totalMembers} total members`);
-      if (totalMembers !== 168) {
-        console.warn(`MT05 member count mismatch. Expected: 168, Got: ${totalMembers}`);
-      }
-    }
-    
-    if (collector.prefix === 'SH' && collector.number === '09') {
-      console.log(`SH09 - ${collector.name} has ${totalMembers} total members`);
-      if (totalMembers !== 90) {
-        console.warn(`SH09 member count mismatch. Expected: 90, Got: ${totalMembers}`);
-      }
+    // Check for known collector member counts
+    const expectedCounts: { [key: string]: number } = {
+      'MT05': 168, // Mohammad Tanveer
+      'SH09': 90,  // Sahil Hussain
+    };
+
+    const collectorKey = `${collector.prefix}${collector.number}`;
+    if (expectedCounts[collectorKey] && totalMembers !== expectedCounts[collectorKey]) {
+      console.warn(
+        `${collectorKey} - ${collector.name} has ${totalMembers} total members. ` +
+        `Expected: ${expectedCounts[collectorKey]}, Got: ${totalMembers}. ` +
+        `Missing: ${expectedCounts[collectorKey] - totalMembers} members`
+      );
+
+      // Show toast for admins about the mismatch
+      toast({
+        title: "Member Count Mismatch",
+        description: `${collector.name} (${collectorKey}) is missing ${expectedCounts[collectorKey] - totalMembers} members`,
+        variant: "destructive",
+      });
     }
     
     return matchesName || matchesNumber || matchesPrefix;
