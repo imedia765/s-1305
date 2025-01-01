@@ -1,6 +1,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CollectorCard } from "./CollectorCard";
 import { useToast } from "@/components/ui/use-toast";
+import { useEffect, useState } from "react";
 
 interface CollectorListProps {
   collectors: any[];
@@ -22,38 +23,46 @@ export function CollectorList({
   searchTerm,
 }: CollectorListProps) {
   const { toast } = useToast();
+  const [checkedCollectors, setCheckedCollectors] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    // Only run checks for collectors we haven't checked yet
+    collectors?.forEach(collector => {
+      const collectorKey = `${collector.prefix}${collector.number}`;
+      if (!checkedCollectors.has(collectorKey)) {
+        const totalMembers = collector.members?.length || 0;
+        
+        // Check for known collector member counts
+        const expectedCounts: { [key: string]: number } = {
+          'MT05': 168, // Mohammad Tanveer
+          'SH09': 90,  // Sahil Hussain
+        };
+
+        if (expectedCounts[collectorKey] && totalMembers !== expectedCounts[collectorKey]) {
+          console.warn(
+            `${collectorKey} - ${collector.name} has ${totalMembers} total members. ` +
+            `Expected: ${expectedCounts[collectorKey]}, Got: ${totalMembers}. ` +
+            `Missing: ${expectedCounts[collectorKey] - totalMembers} members`
+          );
+
+          toast({
+            title: "Member Count Mismatch",
+            description: `${collector.name} (${collectorKey}) is missing ${expectedCounts[collectorKey] - totalMembers} members`,
+            variant: "destructive",
+          });
+
+          // Mark this collector as checked
+          setCheckedCollectors(prev => new Set([...prev, collectorKey]));
+        }
+      }
+    });
+  }, [collectors, toast]);
 
   // Filter collectors based on search term
   const filteredCollectors = collectors?.filter(collector => {
     const matchesName = collector.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesNumber = collector.number.includes(searchTerm);
     const matchesPrefix = collector.prefix.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Count all members regardless of status
-    const totalMembers = collector.members?.length || 0;
-    
-    // Check for known collector member counts
-    const expectedCounts: { [key: string]: number } = {
-      'MT05': 168, // Mohammad Tanveer
-      'SH09': 90,  // Sahil Hussain
-    };
-
-    const collectorKey = `${collector.prefix}${collector.number}`;
-    if (expectedCounts[collectorKey] && totalMembers !== expectedCounts[collectorKey]) {
-      console.warn(
-        `${collectorKey} - ${collector.name} has ${totalMembers} total members. ` +
-        `Expected: ${expectedCounts[collectorKey]}, Got: ${totalMembers}. ` +
-        `Missing: ${expectedCounts[collectorKey] - totalMembers} members`
-      );
-
-      // Show toast for admins about the mismatch
-      toast({
-        title: "Member Count Mismatch",
-        description: `${collector.name} (${collectorKey}) is missing ${expectedCounts[collectorKey] - totalMembers} members`,
-        variant: "destructive",
-      });
-    }
-    
     return matchesName || matchesNumber || matchesPrefix;
   }) ?? [];
 
