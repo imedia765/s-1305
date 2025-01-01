@@ -79,6 +79,17 @@ export default function Collectors() {
         );
         console.log(`- Inactive members: ${inactiveMembers.length}`);
 
+        // Check for mismatches between collector and collector_id
+        const mismatchedMembers = membersData.filter(member => 
+          (member.collector === collector.name && member.collector_id !== collector.id) ||
+          (member.collector !== collector.name && member.collector_id === collector.id)
+        );
+
+        if (mismatchedMembers.length > 0) {
+          console.log(`Found ${mismatchedMembers.length} mismatched members for collector ${collector.name}:`);
+          console.log('Mismatched members:', mismatchedMembers);
+        }
+
         return {
           ...collector,
           members: collectorMembers,
