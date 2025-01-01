@@ -53,6 +53,14 @@ export const AccountSettingsSection = ({ memberData }: AccountSettingsSectionPro
       setLoading(true);
       console.log("Updating profile with data:", formData);
 
+      // Get current session to ensure we're authenticated
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+
+      if (!session) {
+        throw new Error("No active session found");
+      }
+
       // Update member profile
       const { error: memberError } = await supabase
         .from('members')
@@ -69,7 +77,8 @@ export const AccountSettingsSection = ({ memberData }: AccountSettingsSectionPro
           updated_at: new Date().toISOString(),
           profile_updated: true
         })
-        .eq('id', memberData.id);
+        .eq('id', memberData.id)
+        .eq('auth_user_id', session.user.id); // Ensure we're updating our own record
 
       if (memberError) throw memberError;
 
@@ -81,29 +90,27 @@ export const AccountSettingsSection = ({ memberData }: AccountSettingsSectionPro
         await dependantsRef.current.saveDependants();
       }
 
-      // Update profiles table using auth_user_id instead of member_number
-      if (memberData.auth_user_id) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            full_name: formData.full_name,
-            address: formData.address,
-            town: formData.town,
-            postcode: formData.postcode,
-            email: formData.email,
-            phone: formData.phone,
-            date_of_birth: formData.date_of_birth || null,
-            marital_status: formData.marital_status,
-            gender: formData.gender,
-            profile_completed: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', memberData.auth_user_id);
+      // Update profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          full_name: formData.full_name,
+          address: formData.address,
+          town: formData.town,
+          postcode: formData.postcode,
+          email: formData.email,
+          phone: formData.phone,
+          date_of_birth: formData.date_of_birth || null,
+          marital_status: formData.marital_status,
+          gender: formData.gender,
+          profile_completed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', session.user.id);
 
-        if (profileError) {
-          console.error("Error updating profile:", profileError);
-          throw profileError;
-        }
+      if (profileError) {
+        console.error("Error updating profile:", profileError);
+        throw profileError;
       }
 
       toast({
@@ -115,7 +122,7 @@ export const AccountSettingsSection = ({ memberData }: AccountSettingsSectionPro
       console.error("Error updating profile:", error);
       toast({
         title: "Error",
-        description: "Failed to update profile",
+        description: "Failed to update profile. Please try logging in again if the problem persists.",
         variant: "destructive",
       });
     } finally {

@@ -24,15 +24,15 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
           return;
         }
         
-        // Only consider logged in if we have both tokens
-        if (session?.access_token && session?.refresh_token) {
-          console.log("Active session found");
+        // Only consider logged in if we have both tokens and they're valid
+        if (session?.access_token && session?.refresh_token && !session.expires_at) {
+          console.log("Active session found with valid tokens");
           setIsLoggedIn(true);
           if (window.location.pathname === "/login") {
             navigate("/admin");
           }
         } else {
-          console.log("No active session");
+          console.log("No valid session found", { session });
           setIsLoggedIn(false);
           if (window.location.pathname !== "/login" && window.location.pathname !== "/register") {
             navigate("/login");
@@ -56,7 +56,7 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
       switch (event) {
         case "SIGNED_IN":
           if (session?.access_token && session?.refresh_token) {
-            console.log("Sign in event detected");
+            console.log("Sign in event detected with valid tokens");
             setIsLoggedIn(true);
             toast({
               title: "Signed in successfully",
@@ -64,7 +64,7 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
             });
             navigate("/admin");
           } else {
-            console.log("Sign in event but no valid tokens");
+            console.log("Sign in event but invalid tokens");
             setIsLoggedIn(false);
             navigate("/login");
           }
@@ -81,7 +81,7 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
             console.log("Token refreshed successfully");
             setIsLoggedIn(true);
           } else {
-            console.log("Token refresh failed - no valid tokens");
+            console.log("Token refresh failed - invalid tokens");
             setIsLoggedIn(false);
             navigate("/login");
           }
