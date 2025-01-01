@@ -56,6 +56,26 @@ export function CollectorList({
         }
       }
     });
+
+    // Log total members for verification
+    const totalMembers = collectors?.reduce((total, collector) => {
+      return total + (collector.members?.length || 0);
+    }, 0) || 0;
+    
+    console.log(`Total members across all collectors: ${totalMembers}`);
+    
+    // Log individual collector counts for debugging
+    collectors?.forEach(collector => {
+      const activeMembers = collector.members?.filter(m => m.status === 'active' || m.status === null).length || 0;
+      const inactiveMembers = collector.members?.filter(m => m.status === 'inactive').length || 0;
+      const totalCollectorMembers = collector.members?.length || 0;
+      
+      console.log(`Collector ${collector.name}:`);
+      console.log(`- Total members: ${totalCollectorMembers}`);
+      console.log(`- Active members: ${activeMembers}`);
+      console.log(`- Inactive members: ${inactiveMembers}`);
+    });
+
   }, [collectors, toast]);
 
   // Filter collectors based on search term
@@ -73,13 +93,6 @@ export function CollectorList({
       </div>
     );
   }
-
-  // Log total members for verification
-  const totalMembers = collectors?.reduce((total, collector) => {
-    return total + (collector.members?.length || 0);
-  }, 0) || 0;
-  
-  console.log(`Total members across all collectors: ${totalMembers}`);
 
   if (filteredCollectors.length === 0) {
     return (
