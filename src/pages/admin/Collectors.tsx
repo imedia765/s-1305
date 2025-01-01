@@ -19,7 +19,7 @@ export default function Collectors() {
     queryFn: async () => {
       console.log('Starting collectors fetch process...');
       
-      // First, get all collectors
+      // First, get all collectors without any limit
       const { data: collectorsData, error: collectorsError } = await supabase
         .from('collectors')
         .select('*')
@@ -55,6 +55,7 @@ export default function Collectors() {
       const unassignedMembers = membersData.filter(member => !member.collector_id);
       if (unassignedMembers.length > 0) {
         console.log(`Found ${unassignedMembers.length} unassigned members`);
+        console.log('Unassigned members:', unassignedMembers);
       }
 
       // Map members to their collectors
@@ -104,6 +105,9 @@ export default function Collectors() {
       console.log(`- Grand total (including unassigned): ${totals.total + unassignedMembers.length}`);
 
       return enhancedCollectorsData;
+    },
+    meta: {
+      errorMessage: "Failed to load collectors"
     }
   });
 
