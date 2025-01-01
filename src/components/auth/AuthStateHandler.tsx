@@ -18,10 +18,13 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
         if (error) {
           console.error("Session check error:", error);
           setIsLoggedIn(false);
-          navigate("/login");
+          if (window.location.pathname !== "/login" && window.location.pathname !== "/register") {
+            navigate("/login");
+          }
           return;
         }
         
+        // Only consider logged in if we have both tokens
         if (session?.access_token && session?.refresh_token) {
           console.log("Active session found");
           setIsLoggedIn(true);
@@ -38,10 +41,13 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
       } catch (error) {
         console.error("Session check failed:", error);
         setIsLoggedIn(false);
-        navigate("/login");
+        if (window.location.pathname !== "/login" && window.location.pathname !== "/register") {
+          navigate("/login");
+        }
       }
     };
 
+    // Check session immediately
     checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -57,6 +63,10 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
               description: "Welcome back!",
             });
             navigate("/admin");
+          } else {
+            console.log("Sign in event but no valid tokens");
+            setIsLoggedIn(false);
+            navigate("/login");
           }
           break;
           
@@ -67,10 +77,11 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
           break;
           
         case "TOKEN_REFRESHED":
-          console.log("Token refreshed successfully");
           if (session?.access_token && session?.refresh_token) {
+            console.log("Token refreshed successfully");
             setIsLoggedIn(true);
           } else {
+            console.log("Token refresh failed - no valid tokens");
             setIsLoggedIn(false);
             navigate("/login");
           }
@@ -80,6 +91,9 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
           console.log("User data updated");
           if (session?.access_token && session?.refresh_token) {
             setIsLoggedIn(true);
+          } else {
+            setIsLoggedIn(false);
+            navigate("/login");
           }
           break;
           
