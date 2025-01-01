@@ -8,97 +8,115 @@ export async function handleMemberIdLogin(memberId: string, password: string, na
     const member = await getMemberByMemberId(memberId);
     
     if (!member) {
+      console.error("Member lookup failed:", { memberId });
       throw new Error("Member ID not found");
     }
     
     // Use the email stored in the database
     const email = member.email;
     
-    console.log("Attempting member ID login with:", { memberId, email });
+    if (!email) {
+      throw new Error("No email associated with this member ID");
+    }
     
-    // For first time login, always use member number as password
-    if (!member.password_changed) {
-      console.log("First time login detected, using member number as password");
-      
-      // Try to sign in first with member number as password
-      let { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: member.member_number
+    console.log("Attempting member ID login with:", { memberId, email });
+
+    // First check if user exists in auth system
+    const { data: { user: existingUser }, error: userCheckError } = await supabase.auth.getUser();
+    
+    if (userCheckError) {
+      console.error("Error checking user:", userCheckError);
+    }
+
+    // If user exists and is linked to this member, try password reset
+    if (existingUser && member.auth_user_id === existingUser.id) {
+      console.log("User exists and is linked, initiating password reset");
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/update-password`
       });
-
-      if (signInError) {
-        console.log('Initial sign in failed, attempting signup:', signInError);
-        
-        // Only attempt signup if user doesn't exist
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password: member.member_number,
-          options: {
-            data: {
-              member_id: member.id,
-              member_number: member.member_number,
-              full_name: member.full_name
-            }
-          }
-        });
-
-        if (signUpError) {
-          console.error('Sign up error:', signUpError);
-          throw new Error("Failed to create account");
-        }
-
-        // If signup succeeded, try signing in again
-        const { data: finalSignInData, error: finalSignInError } = await supabase.auth.signInWithPassword({
-          email,
-          password: member.member_number
-        });
-
-        if (finalSignInError) {
-          console.error('Final sign in error:', finalSignInError);
-          throw new Error("Failed to sign in after account creation");
-        }
-
-        signInData = finalSignInData;
+      
+      if (resetError) {
+        console.error('Password reset error:', resetError);
+        throw new Error("Unable to reset password. Please contact support.");
       }
+      
+      throw new Error("A password reset link has been sent to your email.");
+    }
 
-      if (signInData?.user) {
-        // Update member record to link it with auth user
+    // Try to sign in with member ID as password
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: member.member_number // Use member_number as initial password
+    });
+
+    if (!signInError && signInData?.user) {
+      console.log("Sign in successful");
+      
+      // Update member record if not already linked
+      if (!member.auth_user_id) {
         const { error: updateError } = await supabase
           .from('members')
           .update({ 
             auth_user_id: signInData.user.id,
-            email_verified: true 
+            email_verified: true
           })
           .eq('id', member.id)
           .single();
 
         if (updateError) {
           console.error('Error updating member:', updateError);
-          throw new Error("Failed to link account");
+          // Continue anyway since sign in worked
         }
-
-        navigate("/admin");
-        return;
       }
-    } else {
-      // Regular login with provided password
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (signInError) {
-        console.error('Sign in error:', signInError);
-        throw new Error("Invalid member ID or password");
-      }
-
-      if (signInData?.user) {
-        navigate("/admin");
-        return;
-      }
+      
+      navigate("/admin");
+      return;
     }
 
-    throw new Error("Login failed");
+    console.log("Sign in failed, attempting signup");
+
+    // Try to create new user
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password: member.member_number, // Use member_number as initial password
+      options: {
+        data: {
+          member_id: member.id,
+          full_name: member.full_name
+        }
+      }
+    });
+
+    if (signUpError) {
+      console.error('Sign up error:', signUpError);
+      if (signUpError.message.includes("Database error saving new user")) {
+        throw new Error("Unable to create account. The email may already be in use. Please contact support.");
+      }
+      throw new Error(signUpError.message);
+    }
+
+    if (!signUpData?.user) {
+      throw new Error("Failed to create account");
+    }
+
+    // Update member record with auth user id
+    const { error: updateError } = await supabase
+      .from('members')
+      .update({ 
+        auth_user_id: signUpData.user.id,
+        email_verified: true
+      })
+      .eq('id', member.id)
+      .single();
+
+    if (updateError) {
+      console.error('Error updating member:', updateError);
+      throw new Error("Account created but failed to update member record. Please contact support.");
+    }
+
+    console.log("Account created successfully");
+    navigate("/admin");
+
   } catch (error) {
     console.error('Authentication error:', error);
     throw error;

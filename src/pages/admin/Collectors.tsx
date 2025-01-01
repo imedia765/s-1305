@@ -30,47 +30,78 @@ export default function Collectors() {
         throw collectorsError;
       }
 
-      console.log('Fetched collectors:', collectorsData?.length);
-
-      // Then, get all members with their collector information
+      // Get all members with their collector information without any limit
       const { data: membersData, error: membersError } = await supabase
         .from('members')
-        .select('id, collector_id, collector')
-        .eq('status', 'active');
+        .select(`
+          id,
+          member_number,
+          full_name,
+          email,
+          phone,
+          address,
+          status,
+          collector_id,
+          collector
+        `);
 
       if (membersError) {
         console.error('Error fetching members:', membersError);
         throw membersError;
       }
 
-      // Create a map of collector IDs to their members
-      const collectorMembersMap = new Map();
-      membersData?.forEach(member => {
-        if (member.collector_id) {
-          const currentMembers = collectorMembersMap.get(member.collector_id) || [];
-          collectorMembersMap.set(member.collector_id, [...currentMembers, member]);
-        }
-      });
+      // Log unassigned members for debugging
+      console.log('Fetching unassigned members...');
+      const unassignedMembers = membersData.filter(member => !member.collector_id);
+      if (unassignedMembers.length > 0) {
+        console.log(`Found ${unassignedMembers.length} unassigned members`);
+      }
 
-      // Enhance collectors with their members
-      const enhancedCollectorsData = collectorsData?.map(collector => {
-        const collectorMembers = collectorMembersMap.get(collector.id) || [];
-        console.log(`Collector ${collector.name} has ${collectorMembers.length} members`);
+      // Map members to their collectors
+      const enhancedCollectorsData = collectorsData.map(collector => {
+        // Filter members by collector_id
+        const collectorMembers = membersData.filter(member => 
+          member.collector_id === collector.id
+        );
+
+        // Log all counts for debugging
+        console.log(`Collector ${collector.name}:`);
+        console.log(`- Total members: ${collectorMembers.length}`);
         
+        const activeMembers = collectorMembers.filter(member => 
+          member.status === 'active' || member.status === null
+        );
+        console.log(`- Active members: ${activeMembers.length}`);
+        
+        const inactiveMembers = collectorMembers.filter(member => 
+          member.status === 'inactive'
+        );
+        console.log(`- Inactive members: ${inactiveMembers.length}`);
+
         return {
           ...collector,
-          members: collectorMembers
+          members: collectorMembers,
+          activeMemberCount: activeMembers.length,
+          inactiveMemberCount: inactiveMembers.length,
+          totalMemberCount: collectorMembers.length
         };
       });
 
-      // Log total active members
-      const totalActiveMembers = membersData?.length || 0;
-      console.log('Fetched total active members:', totalActiveMembers);
+      // Calculate and log all totals
+      const totals = enhancedCollectorsData.reduce((acc, collector) => {
+        return {
+          total: acc.total + collector.totalMemberCount,
+          active: acc.active + collector.activeMemberCount,
+          inactive: acc.inactive + collector.inactiveMemberCount
+        };
+      }, { total: 0, active: 0, inactive: 0 });
 
-      // Log member counts for each collector
-      enhancedCollectorsData?.forEach(collector => {
-        console.log(`Collector ${collector.name} has ${collector.members.length} active members`);
-      });
+      console.log('Final totals:');
+      console.log(`- Total members across all collectors: ${totals.total}`);
+      console.log(`- Total active members: ${totals.active}`);
+      console.log(`- Total inactive members: ${totals.inactive}`);
+      console.log(`- Unassigned members: ${unassignedMembers.length}`);
+      console.log(`- Grand total (including unassigned): ${totals.total + unassignedMembers.length}`);
 
       return enhancedCollectorsData;
     }
