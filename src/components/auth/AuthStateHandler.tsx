@@ -18,22 +18,23 @@ export const useAuthStateHandler = (setIsLoggedIn: (value: boolean) => void) => 
         if (error) {
           console.error("Session check error:", error);
           setIsLoggedIn(false);
-          if (window.location.pathname !== "/login" && window.location.pathname !== "/register") {
-            navigate("/login");
-          }
           return;
         }
         
-        // Only consider logged in if we have both tokens and they're valid
-        if (session?.access_token && session?.refresh_token && !session.expires_at) {
+        // Only consider logged in if we have both tokens
+        if (session?.access_token && session?.refresh_token) {
           console.log("Active session found with valid tokens");
           setIsLoggedIn(true);
+          
+          // Only redirect to admin if we're on the login page
           if (window.location.pathname === "/login") {
             navigate("/admin");
           }
         } else {
           console.log("No valid session found", { session });
           setIsLoggedIn(false);
+          
+          // Only redirect to login if we're not already there or on register
           if (window.location.pathname !== "/login" && window.location.pathname !== "/register") {
             navigate("/login");
           }
