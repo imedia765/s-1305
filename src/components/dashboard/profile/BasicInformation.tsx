@@ -1,7 +1,7 @@
 import { Profile } from "@/integrations/supabase/types/profile";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { UserCog, User, UserCheck } from "lucide-react";
+import { UserCog, User, UserCheck, Users } from "lucide-react";
 
 interface BasicInformationProps {
   profile: Profile;
@@ -16,8 +16,21 @@ export const BasicInformation = ({ profile }: BasicInformationProps) => {
         return <UserCog className="h-4 w-4" />;
       case 'collector':
         return <UserCheck className="h-4 w-4" />;
+      case 'member':
+        return <Users className="h-4 w-4" />;
       default:
         return <User className="h-4 w-4" />;
+    }
+  };
+
+  const getRoleBadgeVariant = (role?: string) => {
+    switch (role) {
+      case 'admin':
+        return 'destructive';
+      case 'collector':
+        return 'success';
+      default:
+        return 'secondary';
     }
   };
 
@@ -40,7 +53,10 @@ export const BasicInformation = ({ profile }: BasicInformationProps) => {
             </Badge>
           )}
           {profile.role && (
-            <Badge variant="secondary" className="capitalize flex gap-1 items-center">
+            <Badge 
+              variant={getRoleBadgeVariant(profile.role)} 
+              className="capitalize flex gap-1 items-center"
+            >
               {getRoleIcon(profile.role)}
               {profile.role}
             </Badge>

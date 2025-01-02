@@ -44,13 +44,9 @@ export const ProfileCard = ({ profile, isLoading }: ProfileCardProps) => {
     <Card className="p-6">
       <div className="space-y-6">
         <BasicInformation profile={profile} />
-
         <ContactInformation profile={profile} />
-
         <FamilyInformation profile={profile} />
-
         <PaymentInformation profile={profile} />
-
         <StatusInformation profile={profile} />
 
         {profile.admin_note && (
