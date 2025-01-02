@@ -6,6 +6,8 @@ interface ContactInformationProps {
 }
 
 export const ContactInformation = ({ profile }: ContactInformationProps) => {
+  console.log("ContactInformation rendering with address:", profile.address);
+  
   return (
     <>
       <div className="md:col-span-2 pt-4">

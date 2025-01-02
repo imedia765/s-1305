@@ -79,7 +79,7 @@ export const useProfile = () => {
         throw profileError;
       }
 
-      // Fetch additional member details
+      // Fetch additional member details including address
       const { data: memberData, error: memberError } = await supabase
         .from("members")
         .select(`
@@ -97,7 +97,10 @@ export const useProfile = () => {
           family_member_dob,
           family_member_gender,
           admin_note,
-          role
+          role,
+          address,
+          town,
+          postcode
         `)
         .eq("auth_user_id", session.user.id)
         .maybeSingle();
@@ -115,10 +118,14 @@ export const useProfile = () => {
         return null;
       }
 
-      // Combine profile and member data
+      // Combine profile and member data, prioritizing member table's address fields
       return {
         ...profileData,
         ...memberData,
+        // Explicitly override address fields with member table data if available
+        address: memberData?.address || profileData.address,
+        town: memberData?.town || profileData.town,
+        postcode: memberData?.postcode || profileData.postcode,
       } as Profile;
     },
     retry: 1,
