@@ -45,7 +45,7 @@ export const useProfile = () => {
         }
       }
 
-      // Now fetch the complete profile
+      // Now fetch the complete profile with role
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select(`
@@ -79,87 +79,46 @@ export const useProfile = () => {
         throw profileError;
       }
 
-      // Separately fetch the role to avoid recursion
-      const { data: roleData, error: roleError } = await supabase
-        .from("members_roles")
-        .select("role")
-        .eq("profile_id", profileData?.id ?? '')
+      // Fetch additional member details
+      const { data: memberData, error: memberError } = await supabase
+        .from("members")
+        .select(`
+          email_verified,
+          profile_completed,
+          registration_completed,
+          first_time_login,
+          registration_status,
+          payment_amount,
+          payment_type,
+          payment_date,
+          payment_notes,
+          family_member_name,
+          family_member_relationship,
+          family_member_dob,
+          family_member_gender,
+          admin_note,
+          role
+        `)
+        .eq("auth_user_id", session.user.id)
         .maybeSingle();
 
-      if (roleError) {
-        console.error("Role fetch error:", roleError);
+      if (memberError) {
+        console.error("Member fetch error:", memberError);
       }
 
       if (!profileData) {
-        console.log("No profile found, checking members table");
-        
-        // If no profile exists, check members table
-        const { data: memberData, error: memberError } = await supabase
-          .from("members")
-          .select(`
-            id,
-            auth_user_id,
-            member_number,
-            full_name,
-            email,
-            role
-          `)
-          .eq("auth_user_id", session.user.id)
-          .maybeSingle();
-
-        if (memberError) {
-          console.error("Member fetch error:", memberError);
-          toast({
-            title: "Error",
-            description: "Failed to fetch member data",
-            variant: "destructive",
-          });
-          throw memberError;
-        }
-
-        if (memberData) {
-          // Create profile from member data
-          const { data: newProfile, error: insertError } = await supabase
-            .rpc('safely_upsert_profile', {
-              p_auth_user_id: session.user.id,
-              p_member_number: memberData.member_number,
-              p_full_name: memberData.full_name,
-              p_email: memberData.email
-            });
-
-          if (insertError) {
-            console.error("Profile creation error:", insertError);
-            toast({
-              title: "Error",
-              description: "Failed to create profile",
-              variant: "destructive",
-            });
-            throw insertError;
-          }
-
-          console.log("Created new profile:", newProfile);
-          
-          // Return the newly created profile with role
-          if (newProfile && newProfile[0]) {
-            return {
-              ...newProfile[0],
-              role: memberData.role
-            } as Profile;
-          }
-        }
-
         toast({
           title: "No Profile Found",
-          description: "No profile or member data found for your account.",
+          description: "No profile data found for your account.",
           variant: "destructive",
         });
         return null;
       }
 
-      // Return profile with role
+      // Combine profile and member data
       return {
         ...profileData,
-        role: roleData?.role
+        ...memberData,
       } as Profile;
     },
     retry: 1,
