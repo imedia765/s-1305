@@ -1,4 +1,3 @@
-import { Footer } from "@/components/Footer";
 import { Grid2x2, Grid3x3, LayoutGrid, Users, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -51,7 +50,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       <main className="flex-1 bg-background">
         {children}
       </main>
-      <Footer />
     </div>
   );
 };
