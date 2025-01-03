@@ -17,7 +17,7 @@ const MembersList = ({ searchTerm, userRole }: MembersListProps) => {
   const { data: members, isLoading, error } = useQuery({
     queryKey: ['members', searchTerm, userRole],
     queryFn: async () => {
-      console.log('Fetching members...');
+      console.log('Fetching members with role:', userRole);
       let query = supabase
         .from('members')
         .select('*');
@@ -26,9 +26,11 @@ const MembersList = ({ searchTerm, userRole }: MembersListProps) => {
         query = query.or(`full_name.ilike.%${searchTerm}%,member_number.ilike.%${searchTerm}%,collector.ilike.%${searchTerm}%`);
       }
 
+      // If user is a collector, only show their assigned members
       if (userRole === 'collector') {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          console.log('Filtering members for collector:', user.id);
           query = query.eq('collector_id', user.id);
         }
       }
@@ -41,6 +43,7 @@ const MembersList = ({ searchTerm, userRole }: MembersListProps) => {
         throw error;
       }
       
+      console.log('Fetched members count:', data?.length);
       return data as Member[];
     },
   });
