@@ -17,7 +17,6 @@ type MemberCollector = Database['public']['Tables']['members_collectors']['Row']
 type Member = Database['public']['Tables']['members']['Row'];
 
 const CollectorsList = () => {
-  // Fetch all members for the master print functionality
   const { data: allMembers } = useQuery({
     queryKey: ['all_members'],
     queryFn: async () => {
@@ -46,7 +45,8 @@ const CollectorsList = () => {
           phone,
           active,
           created_at,
-          updated_at
+          updated_at,
+          member_profile_id
         `)
         .order('number', { ascending: true });
       
@@ -67,25 +67,40 @@ const CollectorsList = () => {
         return [];
       }
 
-      const collectorsWithCounts = await Promise.all(collectorsData.map(async (collector) => {
+      // Fetch member numbers for collectors
+      const collectorsWithDetails = await Promise.all(collectorsData.map(async (collector) => {
         console.log('Calculating member count for collector:', collector.name);
         const { count } = await supabase
           .from('members')
           .select('*', { count: 'exact', head: true })
           .eq('collector', collector.name);
+
+        // Fetch member details if member_profile_id exists
+        let memberNumber = null;
+        if (collector.member_profile_id) {
+          const { data: memberData } = await supabase
+            .from('members')
+            .select('member_number')
+            .eq('id', collector.member_profile_id)
+            .single();
+          
+          if (memberData) {
+            memberNumber = memberData.member_number;
+          }
+        }
         
         return {
           ...collector,
-          memberCount: count || 0
+          memberCount: count || 0,
+          memberNumber
         };
       }));
 
-      console.log('Final collectors with counts:', collectorsWithCounts);
-      return collectorsWithCounts;
+      console.log('Final collectors with counts and member numbers:', collectorsWithDetails);
+      return collectorsWithDetails;
     },
   });
 
-  // Calculate total members across all collectors
   const totalMembers = collectors?.reduce((total, collector) => total + (collector.memberCount || 0), 0) || 0;
 
   if (collectorsLoading) return <div className="text-center py-4">Loading collectors...</div>;
@@ -142,6 +157,11 @@ const CollectorsList = () => {
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-white">{collector.name}</p>
                       <span className="text-sm text-gray-400">#{collector.number}</span>
+                      {collector.memberNumber && (
+                        <span className="text-sm text-purple-400">
+                          (Member #{collector.memberNumber})
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-dashboard-text">
                       <UserCheck className="w-4 h-4" />
