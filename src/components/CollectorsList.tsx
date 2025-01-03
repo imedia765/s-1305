@@ -12,6 +12,8 @@ import TotalCount from "@/components/TotalCount";
 import CollectorMembers from "@/components/CollectorMembers";
 import PrintButtons from "@/components/PrintButtons";
 import { PostgrestError } from '@supabase/supabase-js';
+import CollectorStatusBadge from './collectors/CollectorStatusBadge';
+import CollectorMemberInfo from './collectors/CollectorMemberInfo';
 
 type MemberCollector = Database['public']['Tables']['members_collectors']['Row'];
 type Member = Database['public']['Tables']['members']['Row'];
@@ -52,11 +54,6 @@ const CollectorsList = () => {
       
       if (collectorsError) {
         console.error('Error fetching collectors:', collectorsError);
-        console.error('Error details:', {
-          message: collectorsError.message,
-          details: collectorsError.details,
-          hint: collectorsError.hint
-        });
         throw collectorsError;
       }
 
@@ -67,26 +64,35 @@ const CollectorsList = () => {
         return [];
       }
 
-      // Fetch member numbers for collectors
       const collectorsWithDetails = await Promise.all(collectorsData.map(async (collector) => {
-        console.log('Calculating member count for collector:', collector.name);
+        console.log('Processing collector:', collector.name);
+        
+        // Get member count
         const { count } = await supabase
           .from('members')
           .select('*', { count: 'exact', head: true })
           .eq('collector', collector.name);
 
-        // Fetch member details if member_profile_id exists
+        // Get member number if profile exists
         let memberNumber = null;
         if (collector.member_profile_id) {
-          const { data: memberData } = await supabase
+          console.log('Fetching member details for collector:', collector.name);
+          const { data: memberData, error: memberError } = await supabase
             .from('members')
             .select('member_number')
             .eq('id', collector.member_profile_id)
-            .single();
+            .maybeSingle();
           
-          if (memberData) {
+          if (memberError) {
+            console.error('Error fetching member details:', memberError);
+          } else if (memberData) {
+            console.log('Found member number for collector:', memberData.member_number);
             memberNumber = memberData.member_number;
+          } else {
+            console.log('No member data found for collector:', collector.name);
           }
+        } else {
+          console.log('Collector has no member profile:', collector.name);
         }
         
         return {
@@ -96,7 +102,7 @@ const CollectorsList = () => {
         };
       }));
 
-      console.log('Final collectors with counts and member numbers:', collectorsWithDetails);
+      console.log('Final collectors with details:', collectorsWithDetails);
       return collectorsWithDetails;
     },
   });
@@ -110,15 +116,10 @@ const CollectorsList = () => {
     return (
       <div className="text-center py-4 text-red-500">
         Error loading collectors: {postgrestError.message}
-        {postgrestError.details && (
-          <div className="text-sm mt-2">
-            Details: {postgrestError.details}
-          </div>
-        )}
       </div>
     );
   }
-  if (!collectors?.length) return <div className="text-center py-4">No collectors found in the database. Please add collectors first.</div>;
+  if (!collectors?.length) return <div className="text-center py-4">No collectors found.</div>;
 
   return (
     <div className="space-y-4">
@@ -157,11 +158,7 @@ const CollectorsList = () => {
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-white">{collector.name}</p>
                       <span className="text-sm text-gray-400">#{collector.number}</span>
-                      {collector.memberNumber && (
-                        <span className="text-sm text-purple-400">
-                          (Member #{collector.memberNumber})
-                        </span>
-                      )}
+                      <CollectorMemberInfo memberNumber={collector.memberNumber} />
                     </div>
                     <div className="flex items-center gap-2 text-sm text-dashboard-text">
                       <UserCheck className="w-4 h-4" />
@@ -172,13 +169,7 @@ const CollectorsList = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <PrintButtons collectorName={collector.name || ''} />
-                  <div className={`px-3 py-1 rounded-full ${
-                    collector.active 
-                      ? 'bg-green-500/20 text-green-400' 
-                      : 'bg-gray-500/20 text-gray-400'
-                  }`}>
-                    {collector.active ? 'Active' : 'Inactive'}
-                  </div>
+                  <CollectorStatusBadge active={collector.active} />
                 </div>
               </div>
             </AccordionTrigger>
