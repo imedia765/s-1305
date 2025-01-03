@@ -7,9 +7,13 @@ import CollectorsList from "@/components/CollectorsList";
 import SettingsView from "@/components/settings/SettingsView";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { useToast } from "@/hooks/use-toast";
+import MembersList from "@/components/MembersList";
+import { Input } from "@/components/ui/input";
+import { useState as useSearchState } from "react";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [searchTerm, setSearchTerm] = useState("");
   const { userRole } = useRoleAccess();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -38,6 +42,21 @@ const Index = () => {
     switch (activeTab) {
       case "dashboard":
         return <DashboardView onLogout={handleLogout} />;
+      case "users":
+        return (
+          <div className="p-6">
+            <div className="mb-6">
+              <Input
+                type="text"
+                placeholder="Search members..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="max-w-md"
+              />
+            </div>
+            <MembersList searchTerm={searchTerm} userRole={userRole} />
+          </div>
+        );
       case "collectors":
         return <CollectorsList />;
       case "settings":
