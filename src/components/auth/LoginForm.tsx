@@ -40,6 +40,18 @@ const LoginForm = () => {
       const member = members[0];
       console.log('Member found:', member);
 
+      // Check if member is a collector
+      const { data: collectorData, error: collectorError } = await supabase
+        .from('members_collectors')
+        .select('*')
+        .eq('member_profile_id', member.id)
+        .single();
+
+      if (collectorError && collectorError.code !== 'PGRST116') {
+        console.error('Error checking collector status:', collectorError);
+        throw collectorError;
+      }
+
       const email = `${memberNumber.toLowerCase()}@temp.com`;
       const password = memberNumber;
 
@@ -80,6 +92,22 @@ const LoginForm = () => {
           if (updateError) {
             console.error('Error updating member with auth_user_id:', updateError);
             throw updateError;
+          }
+
+          // If member is a collector, assign collector role
+          if (collectorData) {
+            console.log('Assigning collector role for:', collectorData.name);
+            const { error: roleError } = await supabase
+              .from('user_roles')
+              .insert({
+                user_id: signUpData.user.id,
+                role: 'collector'
+              });
+
+            if (roleError) {
+              console.error('Error assigning collector role:', roleError);
+              throw roleError;
+            }
           }
 
           console.log('Signup successful, attempting final sign in');
