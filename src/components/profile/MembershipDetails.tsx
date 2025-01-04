@@ -17,43 +17,56 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch the actual role from user_roles table
-  const { data: actualRole } = useQuery({
-    queryKey: ['actualUserRole', memberProfile.auth_user_id],
+  // First check if user is a collector
+  const { data: collectorStatus } = useQuery({
+    queryKey: ['collectorStatus', memberProfile.id],
+    queryFn: async () => {
+      console.log('Checking collector status for member:', memberProfile.id);
+      const { data, error } = await supabase
+        .from('members_collectors')
+        .select('name')
+        .eq('member_profile_id', memberProfile.id)
+        .single();
+
+      if (error) {
+        console.error('Error checking collector status:', error);
+        return null;
+      }
+
+      console.log('Collector status result:', data);
+      return data ? 'collector' : null;
+    },
+    enabled: !!memberProfile.id
+  });
+
+  // Then check user_roles table
+  const { data: roleFromTable } = useQuery({
+    queryKey: ['userRole', memberProfile.auth_user_id],
     queryFn: async () => {
       if (!memberProfile.auth_user_id) return null;
       
+      console.log('Checking user_roles for:', memberProfile.auth_user_id);
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', memberProfile.auth_user_id)
-        .maybeSingle();
+        .single();
 
       if (error) {
-        console.error('Error fetching actual role:', error);
+        console.error('Error fetching role from user_roles:', error);
         return null;
       }
 
-      // If no role found in user_roles, check if user is a collector
-      if (!data?.role) {
-        const { data: collectorData } = await supabase
-          .from('members_collectors')
-          .select('name')
-          .eq('member_profile_id', memberProfile.id)
-          .maybeSingle();
-
-        if (collectorData) {
-          return 'collector';
-        }
-      }
-
-      return data?.role || 'member';
+      console.log('Role from user_roles:', data?.role);
+      return data?.role;
     },
     enabled: !!memberProfile.auth_user_id
   });
 
-  // Use the actual role from the database if available, otherwise fall back to the passed userRole
-  const displayRole = actualRole || userRole;
+  // Determine final role
+  const displayRole = roleFromTable || collectorStatus || 'member';
+  console.log('Final determined role:', displayRole);
+  
   const isAdmin = displayRole === 'admin';
 
   const handleRoleChange = async (newRole: AppRole) => {
@@ -85,8 +98,9 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
 
       if (insertError) throw insertError;
 
-      // Invalidate queries to refresh data
-      await queryClient.invalidateQueries({ queryKey: ['actualUserRole'] });
+      // Invalidate all relevant queries
+      await queryClient.invalidateQueries({ queryKey: ['userRole'] });
+      await queryClient.invalidateQueries({ queryKey: ['collectorStatus'] });
 
       toast({
         title: "Success",
