@@ -40,16 +40,17 @@ const LoginForm = () => {
       const member = members[0];
       console.log('Member found:', member);
 
-      // Check if member is a collector
-      const { data: collectorData, error: collectorError } = await supabase
+      // Check if member is a collector using a separate query
+      let isCollector = false;
+      const { data: collectorData } = await supabase
         .from('members_collectors')
-        .select('*')
+        .select('name')
         .eq('member_profile_id', member.id)
-        .single();
+        .maybeSingle();
 
-      if (collectorError && collectorError.code !== 'PGRST116') {
-        console.error('Error checking collector status:', collectorError);
-        throw collectorError;
+      if (collectorData) {
+        console.log('Member is a collector:', collectorData.name);
+        isCollector = true;
       }
 
       const email = `${memberNumber.toLowerCase()}@temp.com`;
@@ -95,8 +96,8 @@ const LoginForm = () => {
           }
 
           // If member is a collector, assign collector role
-          if (collectorData) {
-            console.log('Assigning collector role for:', collectorData.name);
+          if (isCollector) {
+            console.log('Assigning collector role for member');
             const { error: roleError } = await supabase
               .from('user_roles')
               .insert({
