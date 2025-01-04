@@ -213,7 +213,7 @@ export type Database = {
           {
             foreignKeyName: "members_collectors_member_profile_id_fkey"
             columns: ["member_profile_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "members"
             referencedColumns: ["id"]
           },
@@ -245,15 +245,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_collector_role: {
+        Args: {
+          member_id: string
+          collector_name: string
+          collector_prefix: string
+          collector_number: string
+        }
+        Returns: string
+      }
       generate_full_backup: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      is_admin: {
+        Args: {
+          user_uid: string
+        }
+        Returns: boolean
       }
       restore_from_backup: {
         Args: {
           backup_data: Json
         }
         Returns: string
+      }
+      update_collector_profiles: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
     }
     Enums: {
