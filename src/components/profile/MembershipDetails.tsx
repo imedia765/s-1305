@@ -26,7 +26,7 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
         .from('members_collectors')
         .select('name')
         .eq('member_profile_id', memberProfile.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error checking collector status:', error);
@@ -50,7 +50,7 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
         .from('user_roles')
         .select('role')
         .eq('user_id', memberProfile.auth_user_id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching role from user_roles:', error);
@@ -60,7 +60,8 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
       console.log('Role from user_roles:', data?.role);
       return data?.role;
     },
-    enabled: !!memberProfile.auth_user_id
+    enabled: !!memberProfile.auth_user_id,
+    retry: false // Don't retry on 406 errors
   });
 
   // Determine final role
