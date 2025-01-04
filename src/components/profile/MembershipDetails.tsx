@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, CheckCircle2 } from "lucide-react";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface MembershipDetailsProps {
   memberProfile: Member;
@@ -15,6 +15,7 @@ type AppRole = 'admin' | 'collector' | 'member';
 
 const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Fetch the actual role from user_roles table
   const { data: actualRole } = useQuery({
@@ -33,7 +34,20 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
         return null;
       }
 
-      return data?.role || null;
+      // If no role found in user_roles, check if user is a collector
+      if (!data?.role) {
+        const { data: collectorData } = await supabase
+          .from('members_collectors')
+          .select('name')
+          .eq('member_profile_id', memberProfile.id)
+          .maybeSingle();
+
+        if (collectorData) {
+          return 'collector';
+        }
+      }
+
+      return data?.role || 'member';
     },
     enabled: !!memberProfile.auth_user_id
   });
@@ -71,6 +85,9 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
 
       if (insertError) throw insertError;
 
+      // Invalidate queries to refresh data
+      await queryClient.invalidateQueries({ queryKey: ['actualUserRole'] });
+
       toast({
         title: "Success",
         description: `Role updated to ${newRole}`,
@@ -90,7 +107,7 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
       <p className="text-dashboard-muted text-sm">Membership Details</p>
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <p className="text-dashboard-text flex items-center gap-2">
+          <div className="text-dashboard-text flex items-center gap-2">
             Status:{' '}
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
               memberProfile?.status === 'active' 
@@ -102,7 +119,7 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
                 <CheckCircle2 className="w-4 h-4 ml-1 text-dashboard-accent3" />
               )}
             </span>
-          </p>
+          </div>
           {isAdmin && (
             <span className="bg-dashboard-accent1/20 text-dashboard-accent1 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
               <Shield className="w-3 h-3" />
@@ -110,7 +127,7 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
             </span>
           )}
         </div>
-        <p className="text-dashboard-text flex items-center gap-2">
+        <div className="text-dashboard-text flex items-center gap-2">
           <span className="text-dashboard-accent2">Type:</span>
           <span className="flex items-center gap-2">
             {memberProfile?.membership_type || 'Standard'}
@@ -146,7 +163,7 @@ const MembershipDetails = ({ memberProfile, userRole }: MembershipDetailsProps) 
               <RoleBadge role={displayRole} />
             )}
           </span>
-        </p>
+        </div>
       </div>
     </div>
   );
