@@ -1,12 +1,13 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { Session } from '@supabase/supabase-js';
-import Index from './pages/Index';
-import Login from './pages/Login';
+import { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Index from "@/pages/Index";
+import Login from "@/pages/Login";
+import { Session } from "@supabase/supabase-js";
 import { Toaster } from "@/components/ui/toaster";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -44,11 +45,8 @@ function App() {
       setSession(session);
       
       if (!session) {
-        // Clear all queries when logging out
+        // Clear all queries when the user logs out
         await queryClient.resetQueries();
-      } else {
-        // Refresh queries when logging in
-        await queryClient.invalidateQueries();
       }
     });
 
@@ -86,27 +84,27 @@ function App() {
   };
 
   if (loading) {
-    return null; // Or a loading spinner
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
-    <Router>
+    <BrowserRouter>
       <Routes>
-        <Route 
-          path="/login" 
-          element={
-            session ? <Navigate to="/" replace /> : <Login />
-          } 
+        <Route
+          path="/"
+          element={session ? <Index /> : <Login />}
         />
-        <Route 
-          path="/" 
-          element={
-            session ? <Index /> : <Navigate to="/login" replace />
-          } 
+        <Route
+          path="/login"
+          element={<Login />}
         />
       </Routes>
       <Toaster />
-    </Router>
+    </BrowserRouter>
   );
 }
 
