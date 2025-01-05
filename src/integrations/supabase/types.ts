@@ -9,6 +9,45 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          compressed: boolean | null
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          operation: Database["public"]["Enums"]["audit_operation"]
+          record_id: string | null
+          severity: Database["public"]["Enums"]["severity_level"] | null
+          table_name: string
+          timestamp: string | null
+          user_id: string | null
+        }
+        Insert: {
+          compressed?: boolean | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          operation: Database["public"]["Enums"]["audit_operation"]
+          record_id?: string | null
+          severity?: Database["public"]["Enums"]["severity_level"] | null
+          table_name: string
+          timestamp?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          compressed?: boolean | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          operation?: Database["public"]["Enums"]["audit_operation"]
+          record_id?: string | null
+          severity?: Database["public"]["Enums"]["severity_level"] | null
+          table_name?: string
+          timestamp?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       backup_history: {
         Row: {
           backup_file_name: string | null
@@ -306,7 +345,9 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "collector" | "member"
+      audit_operation: "create" | "update" | "delete"
       backup_operation_type: "backup" | "restore"
+      severity_level: "info" | "warning" | "error" | "critical"
     }
     CompositeTypes: {
       [_ in never]: never

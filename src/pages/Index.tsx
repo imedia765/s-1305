@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import DashboardView from '@/components/DashboardView';
 import MembersList from '@/components/MembersList';
 import CollectorsList from '@/components/CollectorsList';
+import AuditLogsView from '@/components/AuditLogsView';
 import SidePanel from '@/components/SidePanel';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useToast } from "@/hooks/use-toast";
@@ -76,6 +77,8 @@ const Index = () => {
             <CollectorsList />
           </>
         );
+      case 'audit':
+        return <AuditLogsView />;
       default:
         return null;
     }
