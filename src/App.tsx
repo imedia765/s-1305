@@ -96,11 +96,31 @@ function App() {
       <Routes>
         <Route
           path="/"
-          element={session ? <Index /> : <Navigate to="/login" replace />}
+          element={
+            loading ? (
+              <div className="flex items-center justify-center min-h-screen">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : session ? (
+              <Index />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
         />
         <Route
           path="/login"
-          element={session ? <Navigate to="/" replace /> : <Login />}
+          element={
+            loading ? (
+              <div className="flex items-center justify-center min-h-screen">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : session ? (
+              <Navigate to="/" replace />
+            ) : (
+              <Login />
+            )
+          }
         />
       </Routes>
       <Toaster />
