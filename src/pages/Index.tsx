@@ -19,7 +19,7 @@ const Index = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { userRole, roleLoading, canAccessTab } = useRoleAccess();
+  const { userRole, roleLoading, error: roleError, canAccessTab } = useRoleAccess();
   const queryClient = useQueryClient();
 
   const handleSessionError = async () => {
@@ -98,6 +98,22 @@ const Index = () => {
       });
     }
   }, [activeTab, roleLoading, userRole]);
+
+  if (roleLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-dashboard-dark">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dashboard-accent1"></div>
+      </div>
+    );
+  }
+
+  if (roleError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-dashboard-dark">
+        <div className="text-white">Error loading user role. Please try refreshing the page.</div>
+      </div>
+    );
+  }
 
   const renderContent = () => {
     if (!canAccessTab(activeTab)) {
