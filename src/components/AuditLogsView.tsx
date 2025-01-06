@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ClipboardList, Activity } from 'lucide-react';
-import AuditLogsList from './logs/AuditLogsList';
-import MonitoringLogsList from './logs/MonitoringLogsList';
+import AuditLogsList from '@/components/logs/AuditLogsList';
+import MonitoringLogsList from '@/components/logs/MonitoringLogsList';
 import { AuditLog } from '@/types/audit';
 import { MonitoringLog } from '@/types/monitoring';
 
