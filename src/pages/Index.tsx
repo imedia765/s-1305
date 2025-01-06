@@ -8,13 +8,13 @@ import AuditLogsView from '@/components/AuditLogsView';
 import SystemToolsView from '@/components/SystemToolsView';
 import CollectorFinancialsView from '@/components/CollectorFinancialsView';
 import ReportsView from '@/components/ReportsView';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess, UserRole } from '@/hooks/useRoleAccess';
 import { useToast } from "@/hooks/use-toast";
 import MainLayout from '@/components/layout/MainLayout';
 import { useQueryClient } from '@tanstack/react-query';
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
@@ -134,7 +134,7 @@ const Index = () => {
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
             />
-            <MembersList searchTerm={searchTerm} userRole={userRole} />
+            <MembersList searchTerm={searchTerm} userRole={userRole as UserRole} />
           </>
         );
       case 'financials':
@@ -153,7 +153,7 @@ const Index = () => {
   return (
     <MainLayout
       activeTab={activeTab}
-      userRole={userRole}
+      userRole={userRole as UserRole}
       isSidebarOpen={isSidebarOpen}
       onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
       onTabChange={setActiveTab}
