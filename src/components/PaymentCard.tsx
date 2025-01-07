@@ -39,15 +39,15 @@ const PaymentCard = ({
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+        return 'bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 text-emerald-400 border border-emerald-500/30';
       case 'due':
-        return 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
+        return 'bg-gradient-to-r from-amber-500/20 to-amber-400/20 text-amber-400 border border-amber-500/30';
       case 'overdue':
-        return 'bg-rose-500/20 text-rose-400 border border-rose-500/30';
+        return 'bg-gradient-to-r from-rose-500/20 to-rose-400/20 text-rose-400 border border-rose-500/30';
       case 'pending':
-        return 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
+        return 'bg-gradient-to-r from-blue-500/20 to-blue-400/20 text-blue-400 border border-blue-500/30';
       default:
-        return 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
+        return 'bg-gradient-to-r from-blue-500/20 to-blue-400/20 text-blue-400 border border-blue-500/30';
     }
   };
 
@@ -67,14 +67,14 @@ const PaymentCard = ({
   };
 
   return (
-    <Card className="dashboard-card">
+    <Card className="dashboard-card bg-gradient-to-br from-dashboard-card to-dashboard-card/80">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Annual Payment Section */}
-        <div className="p-6 glass-card rounded-lg border border-white/10 hover:border-white/20 transition-colors">
-          <h3 className="text-lg font-medium text-white mb-4">Annual Payment</h3>
+        <div className="p-6 glass-card rounded-lg border border-white/10 hover:border-white/20 transition-colors bg-gradient-to-br from-dashboard-dark/50 to-dashboard-dark/30 backdrop-blur-xl">
+          <h3 className="text-lg font-medium text-white mb-4 bg-clip-text text-transparent bg-gradient-to-r from-dashboard-accent1 to-dashboard-accent2">Annual Payment</h3>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-2xl font-bold text-white">£40</p>
+              <p className="text-2xl font-bold text-white bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80">£40</p>
               <p className="text-sm font-bold" style={{ color: getStatusColor(annualPaymentStatus).split(' ')[1].replace('text-', '') }}>
                 Due: {formatDate(annualPaymentDueDate)}
               </p>
@@ -117,11 +117,11 @@ const PaymentCard = ({
         </div>
 
         {/* Emergency Collection Section */}
-        <div className="p-6 glass-card rounded-lg border border-white/10 hover:border-white/20 transition-colors">
-          <h3 className="text-lg font-medium text-white mb-4">Emergency Collection</h3>
+        <div className="p-6 glass-card rounded-lg border border-white/10 hover:border-white/20 transition-colors bg-gradient-to-br from-dashboard-dark/50 to-dashboard-dark/30 backdrop-blur-xl">
+          <h3 className="text-lg font-medium text-white mb-4 bg-clip-text text-transparent bg-gradient-to-r from-dashboard-accent2 to-dashboard-accent3">Emergency Collection</h3>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-2xl font-bold text-white">
+              <p className="text-2xl font-bold text-white bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80">
                 £{emergencyCollectionAmount}
               </p>
               <p className="text-sm font-bold" style={{ color: getStatusColor(emergencyCollectionStatus).split(' ')[1].replace('text-', '') }}>
