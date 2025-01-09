@@ -20,7 +20,13 @@ export const useLoginForm = () => {
     console.log('Starting login process on device type:', isMobile ? 'mobile' : 'desktop');
 
     try {
-      // First, verify member exists and is active
+      // First, clear any existing session
+      console.log('Clearing existing session...');
+      await supabase.auth.signOut();
+      await queryClient.clear();
+      localStorage.clear();
+
+      // Verify member exists and is active
       console.log('Verifying member:', memberNumber);
       const { data: members, error: memberError } = await supabase
         .from('members')
@@ -116,7 +122,24 @@ export const useLoginForm = () => {
         }
       } else if (signInError) {
         console.error('Sign in error:', signInError);
-        throw signInError;
+        if (signInError.message.includes('refresh_token_not_found')) {
+          console.log('Refresh token error detected, clearing session and retrying...');
+          await supabase.auth.signOut();
+          await queryClient.clear();
+          localStorage.clear();
+          
+          // Retry sign in after clearing session
+          const { error: retryError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (retryError) {
+            throw retryError;
+          }
+        } else {
+          throw signInError;
+        }
       }
 
       // Clear any existing queries before proceeding
@@ -157,6 +180,8 @@ export const useLoginForm = () => {
       console.error('Login error:', error);
       // Clear any existing session
       await supabase.auth.signOut();
+      await queryClient.clear();
+      localStorage.clear();
       
       let errorMessage = 'An unexpected error occurred';
       
@@ -166,6 +191,8 @@ export const useLoginForm = () => {
         errorMessage = 'Invalid member number. Please try again.';
       } else if (error.message.includes('Email not confirmed')) {
         errorMessage = 'Please verify your email before logging in';
+      } else if (error.message.includes('refresh_token_not_found')) {
+        errorMessage = 'Session expired. Please try logging in again.';
       }
       
       toast({
