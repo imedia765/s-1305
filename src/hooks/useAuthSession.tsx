@@ -12,14 +12,25 @@ export function useAuthSession() {
 
   const handleSignOut = async () => {
     try {
+      console.log('Starting sign out process...');
       setLoading(true);
-      await Promise.all([
-        queryClient.resetQueries(),
-        queryClient.clear(),
-        localStorage.clear(),
-        supabase.auth.signOut()
-      ]);
+      
+      // Clear all queries first
+      await queryClient.resetQueries();
+      await queryClient.clear();
+      
+      // Clear local storage
+      localStorage.clear();
+      
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      console.log('Sign out successful');
       setSession(null);
+      
+      // Force a page reload to clear any remaining state
+      window.location.href = '/login';
     } catch (error: any) {
       console.error('Error during sign out:', error);
       toast({
@@ -35,7 +46,6 @@ export function useAuthSession() {
   const handleAuthError = async (error: AuthError) => {
     console.error('Auth error:', error);
     
-    // Handle specific auth errors
     if (error.message.includes('refresh_token_not_found') || 
         error.message.includes('invalid refresh token')) {
       toast({
