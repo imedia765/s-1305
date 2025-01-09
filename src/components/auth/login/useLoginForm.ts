@@ -50,6 +50,7 @@ export const useLoginForm = () => {
 
         if (signUpError) {
           console.error('Signup error:', signUpError);
+          setLoading(false);
           throw signUpError;
         }
 
@@ -67,10 +68,12 @@ export const useLoginForm = () => {
 
           if (finalSignInError) {
             console.error('Final sign in error:', finalSignInError);
+            setLoading(false);
             throw finalSignInError;
           }
 
           if (!finalSignInData?.session) {
+            setLoading(false);
             throw new Error('Failed to establish session after signup');
           }
         }
@@ -88,11 +91,13 @@ export const useLoginForm = () => {
       
       if (sessionError) {
         console.error('Session verification error:', sessionError);
+        setLoading(false);
         throw sessionError;
       }
 
       if (!session) {
         console.error('No session established');
+        setLoading(false);
         throw new Error('Failed to establish session');
       }
 
