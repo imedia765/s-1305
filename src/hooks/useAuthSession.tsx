@@ -19,8 +19,9 @@ export function useAuthSession() {
       await queryClient.resetQueries();
       await queryClient.clear();
       
-      // Clear local storage
+      // Clear local storage and session storage
       localStorage.clear();
+      sessionStorage.clear();
       
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
@@ -29,8 +30,8 @@ export function useAuthSession() {
       console.log('Sign out successful');
       setSession(null);
       
-      // Force a page reload to clear any remaining state
-      window.location.href = '/login';
+      // Force a clean page reload to clear any remaining state
+      window.location.replace('/login');
     } catch (error: any) {
       console.error('Error during sign out:', error);
       toast({
