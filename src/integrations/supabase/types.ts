@@ -90,6 +90,60 @@ export type Database = {
         }
         Relationships: []
       }
+      git_operations_logs: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          message: string | null
+          operation_type: string
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          message?: string | null
+          operation_type: string
+          status: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          message?: string | null
+          operation_type?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      git_repository_configs: {
+        Row: {
+          branch: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          repo_url: string
+        }
+        Insert: {
+          branch?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          repo_url: string
+        }
+        Update: {
+          branch?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          repo_url?: string
+        }
+        Relationships: []
+      }
       members: {
         Row: {
           address: string | null
