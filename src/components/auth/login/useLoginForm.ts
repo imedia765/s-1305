@@ -17,11 +17,11 @@ export const useLoginForm = () => {
     e.preventDefault();
     if (loading) return;
     
-    setLoading(true);
-    const isMobile = window.innerWidth <= 768;
-    console.log('Starting login process on device type:', isMobile ? 'mobile' : 'desktop');
-
     try {
+      setLoading(true);
+      const isMobile = window.innerWidth <= 768;
+      console.log('Starting login process on device type:', isMobile ? 'mobile' : 'desktop');
+
       await clearAuthState();
       const member = await verifyMember(memberNumber);
       const { email, password } = getAuthCredentials(memberNumber);
@@ -117,7 +117,7 @@ export const useLoginForm = () => {
       }
     } catch (error: any) {
       console.error('Login error:', error);
-      setLoading(false); // Ensure loading state is reset on error
+      setLoading(false);
       await clearAuthState();
       
       let errorMessage = 'An unexpected error occurred';
