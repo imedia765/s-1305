@@ -104,7 +104,7 @@ export const useLoginForm = () => {
         description: "Welcome back!",
       });
 
-      // Use replace to prevent back button issues on mobile
+      // Use replace to prevent back button issues
       if (isMobile) {
         window.location.href = '/';
       } else {
@@ -112,6 +112,7 @@ export const useLoginForm = () => {
       }
     } catch (error: any) {
       console.error('Login error:', error);
+      setLoading(false); // Ensure loading state is reset on error
       await clearAuthState();
       
       let errorMessage = 'An unexpected error occurred';
@@ -131,8 +132,6 @@ export const useLoginForm = () => {
         description: errorMessage,
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
