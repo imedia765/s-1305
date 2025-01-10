@@ -71,7 +71,7 @@ export const useGitSync = () => {
       const { data, error } = await supabase.functions.invoke('git-sync', {
         body: {
           operation: 'pull',
-          targetUrl
+          customUrl: targetUrl
         }
       });
 
@@ -127,7 +127,7 @@ export const useGitSync = () => {
       const { data, error } = await supabase.functions.invoke('git-sync', {
         body: {
           operation: 'push',
-          targetUrl
+          customUrl: targetUrl
         }
       });
 

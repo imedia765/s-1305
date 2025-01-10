@@ -44,11 +44,16 @@ serve(async (req) => {
     console.log('User authenticated:', user.id)
 
     // Parse request body
-    const { operation, repositoryId, customUrl } = await req.json()
-    console.log('Processing git sync operation:', { operation, repositoryId, customUrl })
+    const { operation, customUrl } = await req.json()
+    console.log('Processing git sync operation:', { operation, customUrl })
 
     if (!operation) {
       throw new Error('Operation type is required')
+    }
+
+    if (!customUrl || customUrl.trim() === '') {
+      console.error('No repository URL provided')
+      throw new Error('Repository URL is required')
     }
 
     // Verify GitHub token exists
@@ -58,53 +63,8 @@ serve(async (req) => {
       throw new Error('GitHub token not configured')
     }
 
-    // Get repository details if repositoryId is provided
-    let repository = null
-    if (repositoryId) {
-      const { data, error: repoError } = await supabase
-        .from('git_repositories')
-        .select('*')
-        .eq('id', repositoryId)
-        .single()
-
-      if (repoError) {
-        console.error('Repository fetch error:', repoError)
-        throw new Error('Failed to fetch repository details')
-      }
-
-      repository = data
-      console.log('Found repository:', repository)
-    }
-
-    // Verify repository URL
-    const repoUrl = customUrl || (repository?.source_url || '')
-    console.log('Using repository URL:', repoUrl)
-    
-    if (!repoUrl || repoUrl.trim() === '') {
-      console.error('No repository URL provided')
-      throw new Error('Repository URL is required')
-    }
-
-    // Create log entry
-    const { data: logEntry, error: logError } = await supabase
-      .from('git_sync_logs')
-      .insert({
-        repository_id: repository?.id,
-        operation_type: operation,
-        status: 'started',
-        created_by: user.id,
-        message: `Starting ${operation} operation for ${repoUrl}`
-      })
-      .select()
-      .single()
-
-    if (logError) {
-      console.error('Log creation error:', logError)
-      throw new Error('Failed to create operation log')
-    }
-
     // Verify repository access
-    const repoPath = repoUrl.replace('https://github.com/', '').replace('.git', '')
+    const repoPath = customUrl.replace('https://github.com/', '').replace('.git', '')
     console.log('Checking repository access:', repoPath)
     
     const repoCheckResponse = await fetch(
@@ -121,35 +81,30 @@ serve(async (req) => {
     if (!repoCheckResponse.ok) {
       const errorData = await repoCheckResponse.text()
       console.error('Repository check failed:', errorData)
-      
-      await supabase
-        .from('git_sync_logs')
-        .update({
-          status: 'failed',
-          message: `Repository access failed: ${errorData}`,
-          error_details: errorData
-        })
-        .eq('id', logEntry.id)
-      
       throw new Error(`Repository access failed: ${errorData}`)
     }
 
-    // Update log with success
-    await supabase
+    // Create log entry
+    const { data: logEntry, error: logError } = await supabase
       .from('git_sync_logs')
-      .update({
+      .insert({
+        operation_type: operation,
         status: 'completed',
-        message: `Successfully verified access and prepared for ${operation} operation`
+        created_by: user.id,
+        message: `Successfully verified access to ${customUrl}`
       })
-      .eq('id', logEntry.id)
+      .select()
+      .single()
+
+    if (logError) {
+      console.error('Log creation error:', logError)
+      throw new Error('Failed to create operation log')
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        repository: repository ? {
-          ...repository,
-          custom_url: customUrl || repository.custom_url
-        } : null
+        message: `Successfully processed ${operation} operation`
       }),
       { 
         headers: { 

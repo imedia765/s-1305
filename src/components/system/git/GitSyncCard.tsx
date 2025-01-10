@@ -24,27 +24,47 @@ const GitSyncCard = () => {
   } = useGitSync();
 
   const handlePullFromMaster = async () => {
-    if (!customRepoUrl) {
+    try {
+      if (!customRepoUrl?.trim()) {
+        toast({
+          title: "Missing Repository URL",
+          description: "Please enter a valid repository URL",
+          variant: "destructive",
+        });
+        return;
+      }
+      console.log('Initiating pull from master with URL:', customRepoUrl);
+      await pullFromMaster(customRepoUrl);
+    } catch (error) {
+      console.error('Pull from master error:', error);
       toast({
-        title: "Missing Repository URL",
-        description: "Please enter a custom repository URL",
+        title: "Operation Failed",
+        description: error instanceof Error ? error.message : "Failed to pull from master",
         variant: "destructive",
       });
-      return;
     }
-    await pullFromMaster(customRepoUrl);
   };
 
   const handlePushToCustom = async () => {
-    if (!customRepoUrl) {
+    try {
+      if (!customRepoUrl?.trim()) {
+        toast({
+          title: "Missing Repository URL",
+          description: "Please enter a valid repository URL",
+          variant: "destructive",
+        });
+        return;
+      }
+      console.log('Initiating push to custom repo with URL:', customRepoUrl);
+      await pushToCustom(customRepoUrl);
+    } catch (error) {
+      console.error('Push to custom error:', error);
       toast({
-        title: "Missing Repository URL",
-        description: "Please enter a custom repository URL",
+        title: "Operation Failed",
+        description: error instanceof Error ? error.message : "Failed to push to custom repository",
         variant: "destructive",
       });
-      return;
     }
-    await pushToCustom(customRepoUrl);
   };
 
   return (
@@ -97,14 +117,14 @@ const GitSyncCard = () => {
           <div className="flex gap-4">
             <Button
               onClick={handlePullFromMaster}
-              disabled={isProcessing}
+              disabled={isProcessing || !customRepoUrl.trim()}
               className="flex-1 bg-dashboard-accent1 hover:bg-dashboard-accent1/80"
             >
               Pull from Master
             </Button>
             <Button
               onClick={handlePushToCustom}
-              disabled={isProcessing}
+              disabled={isProcessing || !customRepoUrl.trim()}
               className="flex-1 bg-dashboard-accent2 hover:bg-dashboard-accent2/80"
             >
               Push to Custom
