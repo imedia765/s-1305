@@ -50,6 +50,11 @@ serve(async (req) => {
     }
 
     const { operation, repositoryId } = await req.json()
+    if (!repositoryId) {
+      console.error('No repository ID provided')
+      throw new Error('Repository ID is required')
+    }
+    
     console.log('Processing git sync operation:', { operation, repositoryId })
 
     // Get repository details
@@ -59,10 +64,17 @@ serve(async (req) => {
       .eq('id', repositoryId)
       .single()
 
-    if (repoError || !repository) {
+    if (repoError) {
       console.error('Repository fetch error:', repoError)
+      throw new Error('Failed to fetch repository details')
+    }
+
+    if (!repository) {
+      console.error('Repository not found:', repositoryId)
       throw new Error('Repository not found')
     }
+
+    console.log('Found repository:', repository)
 
     // Log operation start
     const { data: logEntry, error: logError } = await supabase
@@ -84,6 +96,8 @@ serve(async (req) => {
 
     // Verify repository access
     const repoPath = repository.source_url.replace('https://github.com/', '').replace('.git', '')
+    console.log('Checking repository access:', repoPath)
+    
     const repoCheckResponse = await fetch(
       `https://api.github.com/repos/${repoPath}`,
       {
