@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
 import SystemHealthCheck from './system/SystemHealthCheck';
 import RoleManagementCard from './system/RoleManagementCard';
-import GitOperationsCard from './system/GitOperationsCard';
+import GitSyncCard from './system/git/GitSyncCard';
 import { Card } from './ui/card';
 import { useTestRunner } from './system/test-runner/useTestRunner';
 import TestHeader from './system/test-runner/TestHeader';
@@ -89,7 +89,7 @@ const SystemToolsView = () => {
           </div>
         </Card>
 
-        <GitOperationsCard />
+        <GitSyncCard />
         <RoleManagementCard />
       </div>
     </div>

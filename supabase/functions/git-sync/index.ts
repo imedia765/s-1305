@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting custom repo git operation...');
+    console.log('Starting git sync operation...');
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -49,51 +49,63 @@ serve(async (req) => {
       throw new Error('GitHub token not configured')
     }
 
-    const { repoId, commitMessage = 'Update from dashboard' } = await req.json()
-    console.log('Processing request for repo ID:', repoId)
+    const { operation, targetUrl } = await req.json()
+    console.log('Processing git sync operation:', { operation, targetUrl })
 
-    // Get repository configuration
-    const { data: repoConfig, error: repoError } = await supabase
-      .from('git_repository_configs')
+    // Get master repository
+    const { data: masterRepo, error: masterRepoError } = await supabase
+      .from('git_repositories')
       .select('*')
-      .eq('id', repoId)
+      .eq('is_master', true)
       .single()
 
-    if (repoError || !repoConfig) {
-      console.error('Repository config error:', repoError)
-      throw new Error('Repository configuration not found')
+    if (masterRepoError || !masterRepo) {
+      console.error('Master repository error:', masterRepoError)
+      throw new Error('Master repository not found')
     }
 
-    console.log('Found repo config:', {
-      url: repoConfig.repo_url,
-      branch: repoConfig.branch
-    })
+    // Create or update custom repository record
+    const { data: customRepo, error: customRepoError } = await supabase
+      .from('git_repositories')
+      .upsert({
+        name: 'Custom Repository',
+        source_url: masterRepo.source_url,
+        target_url: targetUrl,
+        branch: 'main',
+        is_master: false,
+        status: 'active'
+      }, {
+        onConflict: 'target_url'
+      })
+      .select()
+      .single()
 
-    // Extract owner and repo from the URL
-    const repoUrl = repoConfig.repo_url.replace(/\.git$/, '')
-    const repoUrlParts = repoUrl
-      .replace('https://github.com/', '')
-      .split('/')
-    
-    if (repoUrlParts.length !== 2) {
-      console.error('Invalid repo URL format:', repoConfig.repo_url)
-      throw new Error('Invalid repository URL format')
+    if (customRepoError) {
+      console.error('Custom repository error:', customRepoError)
+      throw new Error('Failed to manage custom repository')
     }
-
-    const [owner, repo] = repoUrlParts
-    console.log('Parsed repo details:', { owner, repo })
 
     // Log operation start
-    await supabase.from('git_operations_logs').insert({
-      operation_type: 'push',
-      status: 'started',
-      created_by: user.id,
-      message: `Starting push operation to ${repoConfig.repo_url}`
-    })
+    const { data: logEntry, error: logError } = await supabase
+      .from('git_sync_logs')
+      .insert({
+        repository_id: customRepo.id,
+        operation_type: operation,
+        status: 'started',
+        created_by: user.id,
+        message: `Starting ${operation} operation between master and ${targetUrl}`
+      })
+      .select()
+      .single()
+
+    if (logError) {
+      console.error('Log creation error:', logError)
+      throw new Error('Failed to create operation log')
+    }
 
     // Verify repository access
     const repoCheckResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}`,
+      `https://api.github.com/repos/${targetUrl.replace('https://github.com/', '').replace('.git', '')}`,
       {
         headers: {
           'Authorization': `token ${githubToken}`,
@@ -107,25 +119,26 @@ serve(async (req) => {
       const errorData = await repoCheckResponse.text()
       console.error('Repository check failed:', errorData)
       
-      await supabase.from('git_operations_logs').insert({
-        operation_type: 'push',
-        status: 'failed',
-        created_by: user.id,
-        message: `Repository access failed: ${errorData}`
-      })
+      await supabase
+        .from('git_sync_logs')
+        .update({
+          status: 'failed',
+          message: `Repository access failed: ${errorData}`,
+          error_details: errorData
+        })
+        .eq('id', logEntry.id)
       
       throw new Error(`Repository access failed: ${errorData}`)
     }
 
-    console.log('Repository access verified')
-
-    // Log success
-    await supabase.from('git_operations_logs').insert({
-      operation_type: 'push',
-      status: 'completed',
-      created_by: user.id,
-      message: `Successfully verified access to ${repoConfig.repo_url}`
-    })
+    // Update log with success
+    await supabase
+      .from('git_sync_logs')
+      .update({
+        status: 'completed',
+        message: `Successfully verified access and prepared for ${operation} operation`
+      })
+      .eq('id', logEntry.id)
 
     return new Response(
       JSON.stringify({ success: true }),
@@ -133,7 +146,7 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error in git-custom-repo:', error)
+    console.error('Error in git-sync:', error)
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -141,11 +154,14 @@ serve(async (req) => {
     if (supabaseUrl && supabaseServiceKey) {
       const supabase = createClient(supabaseUrl, supabaseServiceKey)
       
-      await supabase.from('git_operations_logs').insert({
-        operation_type: 'push',
-        status: 'failed',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      })
+      await supabase
+        .from('git_sync_logs')
+        .insert({
+          operation_type: 'sync',
+          status: 'failed',
+          message: error instanceof Error ? error.message : 'Unknown error',
+          error_details: error instanceof Error ? error.stack : undefined
+        })
     }
 
     return new Response(

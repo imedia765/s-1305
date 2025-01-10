@@ -1,11 +1,11 @@
 import { Progress } from "@/components/ui/progress";
 
-interface GitOperationProgressProps {
+interface GitSyncProgressProps {
   currentOperation: string;
   progress: number;
 }
 
-export const GitOperationProgress = ({ currentOperation, progress }: GitOperationProgressProps) => {
+export const GitSyncProgress = ({ currentOperation, progress }: GitSyncProgressProps) => {
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-sm text-dashboard-text">
