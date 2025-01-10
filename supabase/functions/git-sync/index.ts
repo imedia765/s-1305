@@ -7,6 +7,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -42,60 +43,41 @@ serve(async (req) => {
 
     console.log('User authenticated:', user.id)
 
-    // Verify GitHub token exists
-    const githubToken = Deno.env.get('GITHUB_PAT')
-    if (!githubToken) {
-      console.error('GitHub PAT not configured')
-      throw new Error('GitHub token not configured')
-    }
-
+    // Parse request body
     const { operation, repositoryId, customUrl } = await req.json()
-    
     console.log('Processing git sync operation:', { operation, repositoryId, customUrl })
 
-    // Get repository details
-    const { data: repository, error: repoError } = await supabase
-      .from('git_repositories')
-      .select('*')
-      .eq('id', repositoryId)
-      .single()
-
-    if (repoError) {
-      console.error('Repository fetch error:', repoError)
-      throw new Error('Failed to fetch repository details')
+    if (!operation) {
+      throw new Error('Operation type is required')
     }
 
-    if (!repository) {
-      console.error('Repository not found:', repositoryId)
-      throw new Error('Repository not found')
-    }
-
-    // Update custom URL if provided
-    if (customUrl && customUrl !== repository.custom_url) {
-      const { error: updateError } = await supabase
+    // Get repository details if repositoryId is provided
+    let repository = null
+    if (repositoryId) {
+      const { data, error: repoError } = await supabase
         .from('git_repositories')
-        .update({ custom_url: customUrl })
+        .select('*')
         .eq('id', repositoryId)
+        .single()
 
-      if (updateError) {
-        console.error('Failed to update custom URL:', updateError)
-        throw new Error('Failed to update custom repository URL')
+      if (repoError) {
+        console.error('Repository fetch error:', repoError)
+        throw new Error('Failed to fetch repository details')
       }
-      
-      console.log('Updated custom URL for repository:', customUrl)
+
+      repository = data
+      console.log('Found repository:', repository)
     }
 
-    console.log('Found repository:', repository)
-
-    // Log operation start
+    // Create log entry
     const { data: logEntry, error: logError } = await supabase
       .from('git_sync_logs')
       .insert({
-        repository_id: repository.id,
+        repository_id: repository?.id,
         operation_type: operation,
         status: 'started',
         created_by: user.id,
-        message: `Starting ${operation} operation for ${repository.source_url}`
+        message: `Starting ${operation} operation for ${repository?.source_url || customUrl}`
       })
       .select()
       .single()
@@ -105,8 +87,19 @@ serve(async (req) => {
       throw new Error('Failed to create operation log')
     }
 
-    // Verify repository access using the actual URL (custom or source)
-    const repoUrl = customUrl || repository.source_url
+    // Verify GitHub token exists
+    const githubToken = Deno.env.get('GITHUB_PAT')
+    if (!githubToken) {
+      console.error('GitHub PAT not configured')
+      throw new Error('GitHub token not configured')
+    }
+
+    // Verify repository access
+    const repoUrl = customUrl || repository?.source_url
+    if (!repoUrl) {
+      throw new Error('No repository URL provided')
+    }
+
     const repoPath = repoUrl.replace('https://github.com/', '').replace('.git', '')
     console.log('Checking repository access:', repoPath)
     
@@ -149,12 +142,17 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true,
-        repository: {
+        repository: repository ? {
           ...repository,
           custom_url: customUrl || repository.custom_url
-        }
+        } : null
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
     )
 
   } catch (error) {
