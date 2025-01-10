@@ -5,8 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
 interface Repository {
   id: string;
   name: string;
-  repo_url: string;
+  source_url: string;
+  target_url?: string;
   branch: string;
+  is_master: boolean;
+  created_at?: string;
+  created_by?: string;
+  last_sync_at?: string;
+  status?: string;
 }
 
 export const useGitOperations = () => {
