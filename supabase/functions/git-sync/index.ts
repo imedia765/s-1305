@@ -51,6 +51,13 @@ serve(async (req) => {
       throw new Error('Operation type is required')
     }
 
+    // Verify GitHub token exists
+    const githubToken = Deno.env.get('GITHUB_PAT')
+    if (!githubToken) {
+      console.error('GitHub PAT not configured')
+      throw new Error('GitHub token not configured')
+    }
+
     // Get repository details if repositoryId is provided
     let repository = null
     if (repositoryId) {
@@ -65,8 +72,20 @@ serve(async (req) => {
         throw new Error('Failed to fetch repository details')
       }
 
+      if (!data) {
+        console.error('Repository not found:', repositoryId)
+        throw new Error('Repository not found')
+      }
+
       repository = data
       console.log('Found repository:', repository)
+    }
+
+    // Verify repository URL
+    const repoUrl = customUrl || repository?.source_url
+    if (!repoUrl) {
+      console.error('No repository URL provided')
+      throw new Error('Repository URL is required')
     }
 
     // Create log entry
@@ -77,7 +96,7 @@ serve(async (req) => {
         operation_type: operation,
         status: 'started',
         created_by: user.id,
-        message: `Starting ${operation} operation for ${repository?.source_url || customUrl}`
+        message: `Starting ${operation} operation for ${repoUrl}`
       })
       .select()
       .single()
@@ -87,19 +106,7 @@ serve(async (req) => {
       throw new Error('Failed to create operation log')
     }
 
-    // Verify GitHub token exists
-    const githubToken = Deno.env.get('GITHUB_PAT')
-    if (!githubToken) {
-      console.error('GitHub PAT not configured')
-      throw new Error('GitHub token not configured')
-    }
-
     // Verify repository access
-    const repoUrl = customUrl || repository?.source_url
-    if (!repoUrl) {
-      throw new Error('No repository URL provided')
-    }
-
     const repoPath = repoUrl.replace('https://github.com/', '').replace('.git', '')
     console.log('Checking repository access:', repoPath)
     
