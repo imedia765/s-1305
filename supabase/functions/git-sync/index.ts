@@ -72,18 +72,15 @@ serve(async (req) => {
         throw new Error('Failed to fetch repository details')
       }
 
-      if (!data) {
-        console.error('Repository not found:', repositoryId)
-        throw new Error('Repository not found')
-      }
-
       repository = data
       console.log('Found repository:', repository)
     }
 
     // Verify repository URL
-    const repoUrl = customUrl || repository?.source_url
-    if (!repoUrl) {
+    const repoUrl = customUrl || (repository?.source_url || '')
+    console.log('Using repository URL:', repoUrl)
+    
+    if (!repoUrl || repoUrl.trim() === '') {
       console.error('No repository URL provided')
       throw new Error('Repository URL is required')
     }
