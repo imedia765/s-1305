@@ -31,8 +31,8 @@ const AddFamilyMemberDialog = ({ member, open, onOpenChange, onFamilyMemberAdded
     
     const { data, error } = await supabase
       .rpc('generate_family_member_number', {
-        parent_member_number: member.member_number,
-        relationship: relationship
+        p_parent_member_number: member.member_number,
+        p_relationship: relationship
       });
 
     if (error) {
