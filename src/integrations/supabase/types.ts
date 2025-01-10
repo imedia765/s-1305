@@ -594,20 +594,13 @@ export type Database = {
           details: Json
         }[]
       }
-      generate_family_member_number:
-        | {
-            Args: {
-              parent_member_number: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              parent_member_number: string
-              relationship: string
-            }
-            Returns: string
-          }
+      generate_family_member_number: {
+        Args: {
+          p_parent_member_number: string
+          p_relationship: string
+        }
+        Returns: string
+      }
       generate_full_backup: {
         Args: Record<PropertyKey, never>
         Returns: Json
