@@ -70,13 +70,10 @@ export const useGitOperations = () => {
     if (!selectedRepo || !customUrl) return;
 
     try {
-      const { error } = await supabase.functions.invoke('git-sync', {
-        body: { 
-          operation: 'update',
-          repositoryId: selectedRepo,
-          customUrl
-        }
-      });
+      const { error } = await supabase
+        .from('git_repositories')
+        .update({ custom_url: customUrl })
+        .eq('id', selectedRepo);
 
       if (error) throw error;
 
