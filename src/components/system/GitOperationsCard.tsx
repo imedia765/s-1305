@@ -138,7 +138,7 @@ const GitOperationsCard = () => {
             >
               {repositories.map((repo) => (
                 <option key={repo.id} value={repo.id}>
-                  {repo.repo_url} ({repo.branch})
+                  {repo.source_url} ({repo.branch})
                 </option>
               ))}
             </select>
