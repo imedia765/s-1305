@@ -90,10 +90,55 @@ export type Database = {
         }
         Relationships: []
       }
+      family_members: {
+        Row: {
+          created_at: string
+          date_of_birth: string | null
+          family_member_number: string
+          full_name: string
+          gender: string | null
+          id: string
+          member_id: string
+          relationship: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_of_birth?: string | null
+          family_member_number: string
+          full_name: string
+          gender?: string | null
+          id?: string
+          member_id: string
+          relationship: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_of_birth?: string | null
+          family_member_number?: string
+          full_name?: string
+          gender?: string | null
+          id?: string
+          member_id?: string
+          relationship?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_members_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       git_operations_logs: {
         Row: {
           created_at: string | null
           created_by: string | null
+          error_details: string | null
           id: string
           message: string | null
           operation_type: string
@@ -102,6 +147,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           created_by?: string | null
+          error_details?: string | null
           id?: string
           message?: string | null
           operation_type: string
@@ -110,6 +156,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           created_by?: string | null
+          error_details?: string | null
           id?: string
           message?: string | null
           operation_type?: string
@@ -455,6 +502,50 @@ export type Database = {
           details: Json
         }[]
       }
+      check_api_health: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          metric_name: string
+          current_value: number
+          threshold: number
+          status: string
+          details: Json
+        }[]
+      }
+      check_auth_flow: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          check_type: string
+          status: string
+          details: Json
+        }[]
+      }
+      check_critical_logic: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          check_type: string
+          status: string
+          details: Json
+        }[]
+      }
+      check_data_integrity: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          check_type: string
+          status: string
+          details: Json
+        }[]
+      }
+      check_error_rates: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          metric_name: string
+          current_value: number
+          threshold: number
+          status: string
+          details: Json
+        }[]
+      }
       check_member_numbers: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -465,9 +556,69 @@ export type Database = {
           details: Json
         }[]
       }
+      check_rbac: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          check_type: string
+          status: string
+          details: Json
+        }[]
+      }
+      check_resource_usage: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          metric_name: string
+          current_value: number
+          threshold: number
+          status: string
+          details: Json
+        }[]
+      }
+      check_system_performance: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          metric_name: string
+          current_value: number
+          threshold: number
+          status: string
+          details: Json
+        }[]
+      }
+      check_user_activity: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          metric_name: string
+          current_value: number
+          threshold: number
+          status: string
+          details: Json
+        }[]
+      }
+      generate_family_member_number:
+        | {
+            Args: {
+              parent_member_number: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              parent_member_number: string
+              relationship: string
+            }
+            Returns: string
+          }
       generate_full_backup: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      get_audit_activity_summary: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          hour_bucket: string
+          operation: string
+          count: number
+        }[]
       }
       get_rls_policies: {
         Args: Record<PropertyKey, never>
@@ -475,6 +626,15 @@ export type Database = {
           table_name: string
           name: string
           command: string
+        }[]
+      }
+      get_system_metrics_history: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          recorded_at: string
+          metric_name: string
+          metric_value: number
+          category: string
         }[]
       }
       get_tables_info: {
@@ -513,6 +673,18 @@ export type Database = {
         }
         Returns: string
       }
+      run_combined_system_checks: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          check_type: string
+          metric_name: string
+          current_value: number
+          threshold: number
+          status: string
+          details: Json
+          test_category: string
+        }[]
+      }
       update_collector_profiles: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -537,6 +709,11 @@ export type Database = {
         | "user_activity"
         | "resource_usage"
       payment_method: "bank_transfer" | "cash"
+      performance_metric:
+        | "response_time"
+        | "query_performance"
+        | "connection_count"
+        | "cache_hit_ratio"
       severity_level: "info" | "warning" | "error" | "critical"
     }
     CompositeTypes: {
