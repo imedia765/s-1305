@@ -49,13 +49,9 @@ serve(async (req) => {
       throw new Error('GitHub token not configured')
     }
 
-    const { operation, repositoryId } = await req.json()
-    if (!repositoryId) {
-      console.error('No repository ID provided')
-      throw new Error('Repository ID is required')
-    }
+    const { operation, repositoryId, customUrl } = await req.json()
     
-    console.log('Processing git sync operation:', { operation, repositoryId })
+    console.log('Processing git sync operation:', { operation, repositoryId, customUrl })
 
     // Get repository details
     const { data: repository, error: repoError } = await supabase
@@ -72,6 +68,21 @@ serve(async (req) => {
     if (!repository) {
       console.error('Repository not found:', repositoryId)
       throw new Error('Repository not found')
+    }
+
+    // Update custom URL if provided
+    if (customUrl && customUrl !== repository.custom_url) {
+      const { error: updateError } = await supabase
+        .from('git_repositories')
+        .update({ custom_url: customUrl })
+        .eq('id', repositoryId)
+
+      if (updateError) {
+        console.error('Failed to update custom URL:', updateError)
+        throw new Error('Failed to update custom repository URL')
+      }
+      
+      console.log('Updated custom URL for repository:', customUrl)
     }
 
     console.log('Found repository:', repository)
@@ -94,8 +105,9 @@ serve(async (req) => {
       throw new Error('Failed to create operation log')
     }
 
-    // Verify repository access
-    const repoPath = repository.source_url.replace('https://github.com/', '').replace('.git', '')
+    // Verify repository access using the actual URL (custom or source)
+    const repoUrl = customUrl || repository.source_url
+    const repoPath = repoUrl.replace('https://github.com/', '').replace('.git', '')
     console.log('Checking repository access:', repoPath)
     
     const repoCheckResponse = await fetch(
@@ -135,7 +147,13 @@ serve(async (req) => {
       .eq('id', logEntry.id)
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ 
+        success: true,
+        repository: {
+          ...repository,
+          custom_url: customUrl || repository.custom_url
+        }
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

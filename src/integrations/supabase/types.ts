@@ -139,6 +139,7 @@ export type Database = {
           branch: string
           created_at: string | null
           created_by: string | null
+          custom_url: string | null
           id: string
           is_master: boolean
           last_sync_at: string | null
@@ -151,6 +152,7 @@ export type Database = {
           branch?: string
           created_at?: string | null
           created_by?: string | null
+          custom_url?: string | null
           id?: string
           is_master?: boolean
           last_sync_at?: string | null
@@ -163,6 +165,7 @@ export type Database = {
           branch?: string
           created_at?: string | null
           created_by?: string | null
+          custom_url?: string | null
           id?: string
           is_master?: boolean
           last_sync_at?: string | null

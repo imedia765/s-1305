@@ -6,6 +6,7 @@ interface Repository {
   id: string;
   name: string;
   source_url: string;
+  custom_url?: string;
   target_url?: string;
   branch: string;
   is_master: boolean;
@@ -24,6 +25,7 @@ export const useGitOperations = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [selectedRepo, setSelectedRepo] = useState('');
   const [showAddRepo, setShowAddRepo] = useState(false);
+  const [customUrl, setCustomUrl] = useState('');
 
   const fetchRepositories = async () => {
     try {
@@ -35,8 +37,9 @@ export const useGitOperations = () => {
       if (error) throw error;
 
       setRepositories(data || []);
-      if (data && data.length > 0 && !selectedRepo) {
+      if (data && data.length > 0) {
         setSelectedRepo(data[0].id);
+        setCustomUrl(data[0].custom_url || '');
       }
     } catch (error: any) {
       console.error('Error fetching repositories:', error);
@@ -63,6 +66,36 @@ export const useGitOperations = () => {
     }
   };
 
+  const handleCustomUrlUpdate = async () => {
+    if (!selectedRepo || !customUrl) return;
+
+    try {
+      const { error } = await supabase.functions.invoke('git-sync', {
+        body: { 
+          operation: 'update',
+          repositoryId: selectedRepo,
+          customUrl
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Custom repository URL updated successfully",
+      });
+      
+      fetchRepositories();
+    } catch (error: any) {
+      console.error('Custom URL update error:', error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update custom repository URL",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handlePushToRepo = async () => {
     if (!selectedRepo) return;
 
@@ -71,7 +104,6 @@ export const useGitOperations = () => {
     setProgress(0);
 
     try {
-      // Simulate progress
       const interval = setInterval(() => {
         setProgress(prev => Math.min(prev + 10, 90));
       }, 500);
@@ -79,7 +111,8 @@ export const useGitOperations = () => {
       const { error } = await supabase.functions.invoke('git-sync', {
         body: { 
           operation: 'push',
-          repositoryId: selectedRepo
+          repositoryId: selectedRepo,
+          customUrl
         }
       });
 
@@ -112,6 +145,13 @@ export const useGitOperations = () => {
     fetchLogs();
   }, []);
 
+  useEffect(() => {
+    if (selectedRepo) {
+      const selectedRepository = repositories.find(repo => repo.id === selectedRepo);
+      setCustomUrl(selectedRepository?.custom_url || '');
+    }
+  }, [selectedRepo, repositories]);
+
   return {
     isProcessing,
     currentOperation,
@@ -120,9 +160,12 @@ export const useGitOperations = () => {
     repositories,
     selectedRepo,
     showAddRepo,
+    customUrl,
+    setCustomUrl,
     setShowAddRepo,
     setSelectedRepo,
     handlePushToRepo,
+    handleCustomUrlUpdate,
     fetchRepositories
   };
 };
