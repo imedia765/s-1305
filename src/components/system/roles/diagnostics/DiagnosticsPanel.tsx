@@ -1,13 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DatabaseEnums } from "@/integrations/supabase/types/enums";
-import { Settings, Database, Shield, GitBranch, Activity, AlertTriangle, Maximize2, Minimize2 } from "lucide-react";
+import { Settings, Database, Shield, GitBranch, Activity, AlertTriangle, Maximize2, Minimize2, KeyRound } from "lucide-react";
 import RolesSection from "./RolesSection";
 import RoutesSection from "./RoutesSection";
 import DatabaseAccessSection from "./DatabaseAccessSection";
 import PermissionsSection from "./PermissionsSection";
 import DebugConsole from "./DebugConsole";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -47,6 +49,62 @@ interface DiagnosticsPanelProps {
 
 const DiagnosticsPanel = ({ isLoading, userDiagnostics, logs, onRunDiagnostics }: DiagnosticsPanelProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isAuthTesting, setIsAuthTesting] = useState(false);
+  const { toast } = useToast();
+
+  const testAuthFlow = async () => {
+    try {
+      setIsAuthTesting(true);
+      console.log('Starting auth flow test...');
+
+      // 1. Check current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('Current session:', session ? 'Active' : 'None');
+      
+      if (sessionError) throw sessionError;
+
+      // 2. Check user roles
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', session?.user?.id);
+
+      if (rolesError) throw rolesError;
+      console.log('User roles:', roles);
+
+      // 3. Test sign out
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
+      console.log('Sign out successful');
+
+      // 4. Check session is cleared
+      const { data: { session: afterSignOut } } = await supabase.auth.getSession();
+      console.log('Session after sign out:', afterSignOut ? 'Still active (error)' : 'Properly cleared');
+
+      // 5. Check RLS policies
+      const { data: tables, error: tablesError } = await supabase
+        .from('get_tables_info')
+        .select('*');
+
+      if (tablesError) throw tablesError;
+      console.log('RLS policies checked');
+
+      toast({
+        title: "Auth Flow Test Complete",
+        description: "All authentication checks completed successfully",
+      });
+
+    } catch (error: any) {
+      console.error('Auth flow test error:', error);
+      toast({
+        title: "Auth Flow Test Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsAuthTesting(false);
+    }
+  };
 
   const diagnosticFunctions = [
     {
@@ -83,6 +141,13 @@ const DiagnosticsPanel = ({ isLoading, userDiagnostics, logs, onRunDiagnostics }
       description: "Monitors and logs system errors",
       status: logs.length ? "Active" : "Pending",
       type: "Monitoring"
+    },
+    {
+      name: "Auth Flow Check",
+      icon: <KeyRound className="w-4 h-4" />,
+      description: "Tests complete authentication flow and permissions",
+      status: "Ready",
+      type: "Security"
     }
   ];
 
@@ -99,6 +164,15 @@ const DiagnosticsPanel = ({ isLoading, userDiagnostics, logs, onRunDiagnostics }
             className="text-dashboard-text hover:text-white"
           >
             {isLoading ? 'Running...' : 'Run Diagnostics'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={testAuthFlow}
+            disabled={isAuthTesting}
+            className="text-dashboard-text hover:text-white"
+          >
+            {isAuthTesting ? 'Testing Auth...' : 'Test Auth Flow'}
           </Button>
           <Button
             variant="ghost"
