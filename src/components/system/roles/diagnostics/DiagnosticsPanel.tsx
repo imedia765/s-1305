@@ -81,10 +81,9 @@ const DiagnosticsPanel = ({ isLoading, userDiagnostics, logs, onRunDiagnostics }
       const { data: { session: afterSignOut } } = await supabase.auth.getSession();
       console.log('Session after sign out:', afterSignOut ? 'Still active (error)' : 'Properly cleared');
 
-      // 5. Check RLS policies
+      // 5. Check RLS policies using rpc instead of from
       const { data: tables, error: tablesError } = await supabase
-        .from('get_tables_info')
-        .select('*');
+        .rpc('get_tables_info');
 
       if (tablesError) throw tablesError;
       console.log('RLS policies checked');
