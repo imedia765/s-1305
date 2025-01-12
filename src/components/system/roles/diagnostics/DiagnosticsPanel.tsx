@@ -59,34 +59,47 @@ const DiagnosticsPanel = ({ isLoading, userDiagnostics, logs, onRunDiagnostics }
 
       // 1. Check current session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('Session check error:', sessionError);
+        throw sessionError;
+      }
       console.log('Current session:', session ? 'Active' : 'None');
-      
-      if (sessionError) throw sessionError;
 
       // 2. Check user roles
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', session?.user?.id);
+      if (session?.user?.id) {
+        const { data: roles, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user.id);
 
-      if (rolesError) throw rolesError;
-      console.log('User roles:', roles);
+        if (rolesError) {
+          console.error('Roles check error:', rolesError);
+          throw rolesError;
+        }
+        console.log('User roles:', roles);
+      } else {
+        console.log('No user ID available for roles check');
+      }
 
       // 3. Test sign out
       const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) throw signOutError;
+      if (signOutError) {
+        console.error('Sign out error:', signOutError);
+        throw signOutError;
+      }
       console.log('Sign out successful');
 
       // 4. Check session is cleared
       const { data: { session: afterSignOut } } = await supabase.auth.getSession();
       console.log('Session after sign out:', afterSignOut ? 'Still active (error)' : 'Properly cleared');
 
-      // 5. Check RLS policies using rpc instead of from
-      const { data: tables, error: tablesError } = await supabase
-        .rpc('get_tables_info');
-
-      if (tablesError) throw tablesError;
-      console.log('RLS policies checked');
+      // 5. Check RLS policies using rpc
+      const { data: tables, error: tablesError } = await supabase.rpc('get_tables_info');
+      if (tablesError) {
+        console.error('Tables info error:', tablesError);
+        throw tablesError;
+      }
+      console.log('RLS policies checked:', tables);
 
       toast({
         title: "Auth Flow Test Complete",
@@ -95,9 +108,17 @@ const DiagnosticsPanel = ({ isLoading, userDiagnostics, logs, onRunDiagnostics }
 
     } catch (error: any) {
       console.error('Auth flow test error:', error);
+      
+      let errorMessage = 'An unexpected error occurred during auth flow test';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.error_description) {
+        errorMessage = error.error_description;
+      }
+      
       toast({
         title: "Auth Flow Test Failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
