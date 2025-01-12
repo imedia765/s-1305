@@ -4,6 +4,12 @@ import { Settings, Database, Shield, GitBranch, Activity, AlertTriangle, Maximiz
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import RolesSection from "./RolesSection";
+import RoutesSection from "./RoutesSection";
+import DatabaseAccessSection from "./DatabaseAccessSection";
+import PermissionsSection from "./PermissionsSection";
+import { DebugConsole } from "@/components/logs/DebugConsole";
+import { DatabaseEnums } from "@/integrations/supabase/types/enums";
 import {
   Table,
   TableBody,
@@ -93,7 +99,7 @@ const DiagnosticsPanel = ({ isLoading, userDiagnostics, logs, onRunDiagnostics }
         console.log('Auth configuration:', {
           hasSession: !!authConfig.session,
           userId: authConfig.session?.user?.id,
-          lastActivityAt: authConfig.session?.last_sign_in_at
+          created_at: authConfig.session?.user?.created_at // Using created_at instead of last_sign_in_at
         });
 
       } else {
