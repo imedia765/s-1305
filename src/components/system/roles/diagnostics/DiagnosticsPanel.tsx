@@ -1,12 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { DatabaseEnums } from "@/integrations/supabase/types/enums";
 import { Settings, Database, Shield, GitBranch, Activity, AlertTriangle, Maximize2, Minimize2, KeyRound } from "lucide-react";
-import RolesSection from "./RolesSection";
-import RoutesSection from "./RoutesSection";
-import DatabaseAccessSection from "./DatabaseAccessSection";
-import PermissionsSection from "./PermissionsSection";
-import DebugConsole from "./DebugConsole";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -77,29 +71,35 @@ const DiagnosticsPanel = ({ isLoading, userDiagnostics, logs, onRunDiagnostics }
           throw rolesError;
         }
         console.log('User roles:', roles);
+
+        // 3. Test RLS policies
+        const { data: tables, error: tablesError } = await supabase.rpc('get_tables_info');
+        if (tablesError) {
+          console.error('Tables info error:', tablesError);
+          throw tablesError;
+        }
+        console.log('RLS policies checked:', tables);
+
+        // 4. Test permissions
+        const { data: memberData, error: memberError } = await supabase
+          .from('members')
+          .select('*')
+          .limit(1);
+        
+        console.log('Testing read permissions:', memberError ? 'Failed' : 'Success');
+        
+        // 5. Check auth methods
+        const { data: authConfig } = await supabase.auth.getSession();
+        console.log('Auth configuration:', {
+          hasSession: !!authConfig.session,
+          userId: authConfig.session?.user?.id,
+          lastActivityAt: authConfig.session?.last_sign_in_at
+        });
+
       } else {
-        console.log('No user ID available for roles check');
+        console.log('No user ID available for auth checks');
+        throw new Error('No active session found');
       }
-
-      // 3. Test sign out
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) {
-        console.error('Sign out error:', signOutError);
-        throw signOutError;
-      }
-      console.log('Sign out successful');
-
-      // 4. Check session is cleared
-      const { data: { session: afterSignOut } } = await supabase.auth.getSession();
-      console.log('Session after sign out:', afterSignOut ? 'Still active (error)' : 'Properly cleared');
-
-      // 5. Check RLS policies using rpc
-      const { data: tables, error: tablesError } = await supabase.rpc('get_tables_info');
-      if (tablesError) {
-        console.error('Tables info error:', tablesError);
-        throw tablesError;
-      }
-      console.log('RLS policies checked:', tables);
 
       toast({
         title: "Auth Flow Test Complete",
