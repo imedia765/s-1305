@@ -524,6 +524,44 @@ export type Database = {
           },
         ]
       }
+      role_history: {
+        Row: {
+          change_type: string | null
+          changed_by_user_id: string | null
+          created_at: string
+          id: string
+          new_value: Json | null
+          old_value: Json | null
+          role_id: string | null
+        }
+        Insert: {
+          change_type?: string | null
+          changed_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          role_id?: string | null
+        }
+        Update: {
+          change_type?: string | null
+          changed_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          role_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_history_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "user_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_announcements: {
         Row: {
           created_at: string
