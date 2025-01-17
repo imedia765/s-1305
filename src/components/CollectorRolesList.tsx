@@ -1,23 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
-import { Database } from '@/integrations/supabase/types';
-import { Loader2, AlertCircle, User, Shield, Clock } from "lucide-react";
+import { Loader2, AlertCircle, User, Shield, Clock, Activity, Database, RefreshCw, HardDrive } from "lucide-react";
 import { format } from 'date-fns';
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { useEnhancedRoleAccess } from "@/hooks/useEnhancedRoleAccess";
 import { useRoleSync } from "@/hooks/useRoleSync";
 import { useRoleStore } from "@/store/roleStore";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface CollectorInfo {
   full_name: string;
@@ -43,6 +41,7 @@ const CollectorRolesList = () => {
       console.log('Fetching collectors and roles data...');
       
       try {
+        // First get active collectors
         const { data: activeCollectors, error: collectorsError } = await supabase
           .from('members_collectors')
           .select('member_number, name')
@@ -55,9 +54,11 @@ const CollectorRolesList = () => {
 
         console.log('Active collectors:', activeCollectors);
 
+        // Then get member details and roles for each collector
         const collectorsWithRoles = await Promise.all(
           activeCollectors.map(async (collector) => {
             try {
+              // Get member data
               const { data: memberData, error: memberError } = await supabase
                 .from('members')
                 .select('full_name, member_number, auth_user_id')
@@ -69,6 +70,9 @@ const CollectorRolesList = () => {
                 throw memberError;
               }
 
+              console.log('Member data:', memberData);
+
+              // Get user roles with creation timestamp
               const { data: roles, error: rolesError } = await supabase
                 .from('user_roles')
                 .select('role, created_at')
@@ -79,6 +83,8 @@ const CollectorRolesList = () => {
                 console.error('Error fetching roles:', rolesError);
                 throw rolesError;
               }
+
+              console.log('User roles:', roles);
 
               return {
                 full_name: memberData.full_name,
@@ -102,6 +108,7 @@ const CollectorRolesList = () => {
           })
         );
 
+        // Filter out any null results from errors
         const validCollectors = collectorsWithRoles.filter(c => c !== null);
         console.log('Final collectors data:', validCollectors);
         return validCollectors;
@@ -143,61 +150,163 @@ const CollectorRolesList = () => {
         </Badge>
       </div>
 
-      <Card className="p-4 bg-dashboard-card border-dashboard-cardBorder">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-[#F3F3F3]">Collector</TableHead>
-              <TableHead className="text-[#F3F3F3]">Member #</TableHead>
-              <TableHead className="text-[#F3F3F3]">Roles</TableHead>
-              <TableHead className="text-[#F3F3F3]">Last Updated</TableHead>
-              <TableHead className="text-[#F3F3F3]">Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {collectors?.map((collector) => (
-              <TableRow key={collector.auth_user_id}>
-                <TableCell className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-dashboard-accent1" />
-                  <span className="text-[#F3F3F3]">{collector.full_name}</span>
-                </TableCell>
-                <TableCell className="text-[#D6BCFA]">
-                  {collector.member_number}
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {collector.roles.map((role, idx) => (
-                      <Badge 
-                        key={`${role}-${idx}`}
-                        variant="outline"
-                        className="bg-[#9B87F5]/10 text-[#D6BCFA] border-[#9B87F5]/20"
-                      >
-                        {role}
-                      </Badge>
-                    ))}
+      <div className="grid gap-6">
+        {collectors?.map((collector) => (
+          <Card key={collector.member_number} className="p-6 bg-dashboard-card border-dashboard-cardBorder hover:border-dashboard-accent1/30 transition-all duration-300">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <User className="h-5 w-5 text-dashboard-accent1" />
+                    <h3 className="text-lg font-medium text-[#F3F3F3]">{collector.full_name}</h3>
                   </div>
-                </TableCell>
-                <TableCell className="text-[#F1F0FB] text-sm">
-                  {collector.role_details.length > 0 && (
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {format(new Date(collector.role_details[collector.role_details.length - 1].created_at), 'PPp')}
+                  <p className="text-sm text-[#D6BCFA]">Member #: {collector.member_number}</p>
+                  <p className="text-xs text-[#E5DEFF] font-mono">ID: {collector.auth_user_id}</p>
+                </div>
+              </div>
+
+              <Separator className="bg-dashboard-cardBorder" />
+
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="roles">
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-[#FDE1D3]" />
+                      <span className="text-[#FDE1D3]">Role Information</span>
                     </div>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge 
-                    variant="outline"
-                    className="bg-green-500/20 text-green-400 border-green-500/20"
-                  >
-                    Active
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2">
+                      {collector.role_details.map((roleDetail, index) => (
+                        <div 
+                          key={`${roleDetail.role}-${index}`}
+                          className="flex items-center justify-between bg-dashboard-card/50 rounded-md p-2"
+                        >
+                          <Badge 
+                            variant="outline"
+                            className="bg-[#9B87F5]/10 text-[#D6BCFA] border-[#9B87F5]/20"
+                          >
+                            {roleDetail.role}
+                          </Badge>
+                          <span className="text-xs text-[#F1F0FB]">
+                            Added: {format(new Date(roleDetail.created_at), 'PPp')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="roleAccess">
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-[#F2FCE2]" />
+                      <span className="text-[#F2FCE2]">Role Access Status</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <span className="text-[#D3E4FD]">Current Role:</span>
+                        <Badge variant="outline" className="text-[#FEF7CD]">{userRole}</Badge>
+                        <span className="text-[#D3E4FD]">Loading:</span>
+                        <Badge variant={roleLoading ? "destructive" : "secondary"}>
+                          {roleLoading ? "Loading" : "Ready"}
+                        </Badge>
+                        <span className="text-[#D3E4FD]">Permissions:</span>
+                        <div className="space-y-1">
+                          {Object.entries(permissions).map(([key, value]) => (
+                            <Badge 
+                              key={key}
+                              variant={value ? "secondary" : "outline"}
+                              className="mr-1 text-[#FEC6A1]"
+                            >
+                              {key}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="enhancedAccess">
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Database className="h-5 w-5 text-[#F2FCE2]" />
+                      <span className="text-[#F2FCE2]">Enhanced Role Status</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <span className="text-[#D3E4FD]">Query Status:</span>
+                        <Badge variant={enhancedLoading ? "destructive" : "secondary"}>
+                          {enhancedLoading ? "Loading" : "Ready"}
+                        </Badge>
+                        <span className="text-[#D3E4FD]">Enhanced Roles:</span>
+                        <div className="space-y-1">
+                          {enhancedRoles?.map((role) => (
+                            <Badge 
+                              key={role}
+                              variant="outline"
+                              className="mr-1"
+                            >
+                              {role}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="roleSync">
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className="h-5 w-5 text-[#F2FCE2]" />
+                      <span className="text-[#F2FCE2]">Role Sync Status</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <span className="text-[#D3E4FD]">Sync Status:</span>
+                        <Badge variant={syncStatus ? "secondary" : "outline"}>
+                          {syncStatus ? "Synced" : "Pending"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="roleStore">
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <HardDrive className="h-5 w-5 text-[#F2FCE2]" />
+                      <span className="text-[#F2FCE2]">Role Store Status</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <span className="text-[#D3E4FD]">Store Status:</span>
+                        <Badge variant={roleStore.isLoading ? "destructive" : "secondary"}>
+                          {roleStore.isLoading ? "Loading" : "Ready"}
+                        </Badge>
+                        <span className="text-[#D3E4FD]">Store Error:</span>
+                        <Badge variant={roleStore.error ? "destructive" : "secondary"}>
+                          {roleStore.error ? "Error" : "None"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 };
